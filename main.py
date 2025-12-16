@@ -1,7 +1,10 @@
 """Main application entry point."""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from src.api.routes import router
 from src.database.db import init_db
 from src.utils.config import config
@@ -9,11 +12,27 @@ from src.utils.config import config
 # Initialize database
 init_db()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifespan events."""
+    # Startup
+    try:
+        config.validate()
+    except ValueError as e:
+        print(f"Configuration error: {e}")
+        raise
+    yield
+    # Shutdown
+    pass
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Daily Market Tips",
     description="Expert-analyzed market insights delivered via email",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -28,15 +47,10 @@ app.add_middleware(
 # Include API routes
 app.include_router(router, prefix="/api", tags=["tips"])
 
-
-@app.on_event("startup")
-async def startup_event():
-    """Initialize services on startup."""
-    try:
-        config.validate()
-    except ValueError as e:
-        print(f"Configuration error: {e}")
-        raise
+# Serve static files from frontend dist directory
+frontend_dist = Path(__file__).parent / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="static")
 
 
 @app.get("/health")

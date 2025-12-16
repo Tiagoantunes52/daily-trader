@@ -1,19 +1,44 @@
 """Pytest configuration and fixtures."""
 
 import pytest
-from sqlalchemy import create_engine
+import tempfile
+import os
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from src.database.models import Base
 from src.database.db import get_db
 from main import app
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def test_db():
-    """Create an in-memory test database."""
-    engine = create_engine("sqlite:///:memory:")
+    """Create a file-based test database."""
+    # Create a temporary file for the database
+    fd, db_path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False}
+    )
+    
+    # Enable foreign keys
+    @event.listens_for(engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+    
     Base.metadata.create_all(bind=engine)
-    return engine
+    
+    yield engine
+    
+    # Cleanup
+    engine.dispose()
+    try:
+        os.unlink(db_path)
+    except:
+        pass
 
 
 @pytest.fixture
@@ -21,7 +46,10 @@ def test_session(test_db):
     """Create a test database session."""
     TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_db)
     session = TestingSessionLocal()
+    
     yield session
+    
+    session.rollback()
     session.close()
 
 

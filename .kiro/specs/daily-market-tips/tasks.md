@@ -62,39 +62,39 @@
   - **Feature: daily-market-tips, Property 6: Email delivery executes on schedule**
   - **Validates: Requirements 3.2**
 
-- [ ] 6. Implement Dashboard API
+- [x] 6. Implement Dashboard API
   - Create REST API endpoints for retrieving tips and market data
   - Implement filtering by asset type (crypto/stock) and date range
   - Implement historical tip retrieval (past N days)
   - Add pagination for large result sets
   - _Requirements: 1.3, 1.4, 2.2, 2.3_
 
-- [ ] 7. Implement Dashboard Web UI
+- [x] 7. Implement Dashboard Web UI
   - Create responsive web interface for viewing current tips
   - Display market data with source attribution and historical charts
   - Implement filtering and search functionality
   - Add tip history view with date range selection
   - _Requirements: 1.3, 1.4, 2.2, 2.3_
 
-- [ ] 8. Implement User Configuration Management
+- [x] 8. Implement User Configuration Management
   - Create user profile management (email address, delivery times, asset preferences)
   - Implement email address update functionality with validation
   - Store user preferences in database
   - _Requirements: 3.4_
 
-- [ ] 8.1 Write property test for email address updates
+- [x] 8.1 Write property test for email address updates
   - **Feature: daily-market-tips, Property 8: Updated email addresses are used**
   - **Validates: Requirements 3.4**
 
-- [ ] 9. Checkpoint - Ensure all tests pass
+- [x] 9. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Integration and End-to-End Testing
+- [x] 10. Integration and End-to-End Testing
   - Test complete flow: scheduler triggers → data fetch → analysis → email send
   - Test complete flow: scheduler triggers → data fetch → analysis → dashboard update
   - Test error scenarios: API failures, email send failures, invalid data
   - Verify retry logic works correctly for failed operations
   - _Requirements: 1.1, 1.2, 3.2, 3.3_
 
-- [ ] 11. Final Checkpoint - Ensure all tests pass
+- [x] 11. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
