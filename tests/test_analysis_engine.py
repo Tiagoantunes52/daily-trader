@@ -6,6 +6,8 @@ from datetime import datetime
 from src.services.analysis_engine import AnalysisEngine
 from src.models.market_data import MarketData, HistoricalData, DataSource
 from src.models.trading_tip import TradingTip
+from src.utils.event_store import EventStore
+from src.utils.trace_context import create_trace, clear_trace
 
 
 # Strategies for generating test data
@@ -233,3 +235,49 @@ class TestAnalysisEngine:
         stock_tips = engine.analyze_stocks([crypto_data, stock_data])
         assert len(stock_tips) == 1
         assert stock_tips[0].type == "stock"
+
+    @given(st.lists(market_data_strategy(asset_type="crypto"), min_size=1, max_size=10))
+    def test_analysis_operations_logged_with_indicators(self, market_data_list):
+        """
+        **Feature: observability-logging, Property 3: Analysis operations are logged with indicators**
+        
+        For any analysis operation, the event store SHALL contain analysis_complete events
+        with indicators included in the context.
+        
+        **Validates: Requirements 1.3**
+        """
+        # Setup
+        event_store = EventStore()
+        engine = AnalysisEngine(event_store=event_store)
+        trace_id = create_trace()
+        
+        try:
+            # Execute
+            tips = engine.analyze_crypto(market_data_list)
+            
+            # Verify
+            # Get all analysis_complete events for this trace that have symbol in context
+            # (these are per-symbol analysis events, not the summary event)
+            analysis_events = [
+                e for e in event_store.get_events_by_trace(trace_id)
+                if e.event_type == "analysis_complete" and "symbol" in e.context
+            ]
+            
+            # Property: For each tip generated, there should be a corresponding analysis_complete event
+            # with indicators in the context
+            assert len(analysis_events) == len(tips), "Each tip must have a corresponding analysis event"
+            
+            for event in analysis_events:
+                # Each event should have indicators in context
+                assert "indicators" in event.context, "Analysis event must include indicators"
+                indicators = event.context["indicators"]
+                assert isinstance(indicators, list), "Indicators must be a list"
+                assert len(indicators) > 0, "Analysis must reference at least one indicator"
+                
+                # Verify indicators are valid
+                valid_indicators = {"RSI", "SMA", "MACD"}
+                for indicator in indicators:
+                    assert indicator in valid_indicators, f"Indicator {indicator} must be valid"
+        
+        finally:
+            clear_trace()

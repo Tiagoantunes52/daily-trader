@@ -2,7 +2,7 @@
 
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from src.database.models import UserProfile
 
@@ -52,8 +52,8 @@ class UserService:
             morning_time=morning_time,
             evening_time=evening_time,
             asset_preferences=json.dumps(asset_preferences) if asset_preferences else None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
         
         self.db_session.add(user)
@@ -130,7 +130,7 @@ class UserService:
             raise ValueError(f"User not found: {user_id}")
         
         user.email = new_email
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         
         self.db_session.commit()
         
@@ -171,7 +171,7 @@ class UserService:
         if evening_time:
             user.evening_time = evening_time
         
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         
         self.db_session.commit()
         
@@ -205,7 +205,7 @@ class UserService:
             raise ValueError(f"User not found: {user_id}")
         
         user.asset_preferences = json.dumps(asset_preferences)
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         
         self.db_session.commit()
         

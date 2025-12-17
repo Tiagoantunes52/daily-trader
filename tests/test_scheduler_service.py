@@ -1,6 +1,9 @@
 """Tests for scheduler service."""
 
 import pytest
+import json
+import sys
+from io import StringIO
 from hypothesis import given, strategies as st, settings
 from datetime import datetime, timedelta
 from unittest.mock import Mock, patch, MagicMock
@@ -10,6 +13,7 @@ from src.services.market_data_aggregator import MarketDataAggregator
 from src.services.analysis_engine import AnalysisEngine
 from src.models.trading_tip import EmailContent, TradingTip, TipSource
 from src.models.market_data import MarketData, HistoricalData, DataSource
+from src.utils.logger import StructuredLogger
 
 
 # Strategies for generating test data
@@ -219,4 +223,285 @@ class TestSchedulerService:
         assert jobs_count_1 == jobs_count_2
         
         scheduler.stop()
+
+    @given(market_data_strategy(asset_type="crypto"))
+    @settings(max_examples=20)
+    def test_delivery_operations_are_logged(self, market_data):
+        """
+        **Feature: observability-logging, Property 1: Delivery operations are logged**
+        **Validates: Requirements 1.1**
+
+        For any delivery operation, the event store SHALL contain both a delivery_start
+        and delivery_complete event with matching trace IDs.
+        """
+        from src.utils.event_store import EventStore
+        from src.utils.trace_context import create_trace, clear_trace
+        
+        event_store = EventStore()
+        scheduler = SchedulerService(event_store=event_store)
+        
+        # Create a trace for this test
+        trace_id = create_trace()
+        
+        try:
+            # Mock the services to return our test data
+            with patch.object(scheduler.market_aggregator, 'fetch_crypto_data', return_value=[market_data]):
+                with patch.object(scheduler.market_aggregator, 'fetch_stock_data', return_value=[]):
+                    mock_tip = TradingTip(
+                        symbol=market_data.symbol,
+                        type="crypto",
+                        recommendation="BUY",
+                        reasoning="Test recommendation",
+                        confidence=75,
+                        indicators=["RSI"],
+                        sources=[TipSource(name="Test", url="https://test.com")]
+                    )
+                    with patch.object(scheduler.analysis_engine, 'analyze_crypto', return_value=[mock_tip]):
+                        with patch.object(scheduler.analysis_engine, 'analyze_stocks', return_value=[]):
+                            with patch.object(scheduler.email_service, 'send_email_content', return_value=True):
+                                # Execute delivery
+                                scheduler.execute_delivery("morning")
+                                
+                                # Property: Event store should contain delivery_start event
+                                events = event_store.get_all_events()
+                                delivery_start_events = [e for e in events if e.event_type == "delivery_start"]
+                                assert len(delivery_start_events) > 0, "delivery_start event not found"
+                                
+                                # Property: Event store should contain delivery_complete event
+                                delivery_complete_events = [e for e in events if e.event_type == "delivery_complete"]
+                                assert len(delivery_complete_events) > 0, "delivery_complete event not found"
+                                
+                                # Property: Both events should have matching trace IDs
+                                start_trace = delivery_start_events[0].trace_id
+                                complete_trace = delivery_complete_events[0].trace_id
+                                assert start_trace == complete_trace, "Trace IDs don't match between start and complete events"
+        finally:
+            clear_trace()
+
+    @given(market_data_strategy(asset_type="crypto"))
+    @settings(max_examples=20)
+    def test_fetch_operations_are_logged_with_required_fields(self, market_data):
+        """
+        **Feature: observability-logging, Property 2: Fetch operations are logged with required fields**
+        **Validates: Requirements 1.2**
+
+        For any market data fetch operation, the log entry SHALL include source,
+        symbols, and result (success/failure).
+        """
+        from src.utils.trace_context import create_trace, clear_trace
+        
+        trace_id = create_trace()
+        
+        try:
+            aggregator = MarketDataAggregator()
+            
+            # Mock the requests to return our test data
+            with patch('src.services.market_data_aggregator.requests.get') as mock_get:
+                mock_response = Mock()
+                mock_response.json.return_value = {
+                    market_data.symbol.lower(): {
+                        "usd": market_data.current_price,
+                        "usd_24h_change": market_data.price_change_24h,
+                        "usd_24h_vol": market_data.volume_24h
+                    }
+                }
+                mock_response.raise_for_status.return_value = None
+                mock_get.return_value = mock_response
+                
+                # Capture logs
+                captured_output = StringIO()
+                original_stdout = sys.stdout
+                sys.stdout = captured_output
+                
+                try:
+                    # Fetch crypto data
+                    result = aggregator.fetch_crypto_data([market_data.symbol])
+                    
+                    # Restore stdout
+                    sys.stdout = original_stdout
+                    output = captured_output.getvalue()
+                    
+                    # Parse log entries
+                    log_lines = output.strip().split('\n')
+                    log_entries = [json.loads(line) for line in log_lines if line.strip()]
+                    
+                    # Property: At least one log entry should exist
+                    assert len(log_entries) > 0, "No log entries found"
+                    
+                    # Property: Log entries should include source and symbol
+                    source_logs = [e for e in log_entries if "source" in e.get("context", {})]
+                    assert len(source_logs) > 0, "No logs with source field found"
+                    
+                    for log_entry in source_logs:
+                        context = log_entry.get("context", {})
+                        assert "source" in context, "Missing 'source' field in context"
+                        assert "symbol" in context, "Missing 'symbol' field in context"
+                    
+                    # Property: At least one log entry should have a result field
+                    result_logs = [e for e in log_entries if "result" in e.get("context", {})]
+                    assert len(result_logs) > 0, "No logs with result field found"
+                    
+                    for log_entry in result_logs:
+                        context = log_entry.get("context", {})
+                        assert context["result"] in ["success", "failed", "not_found"], "Invalid result value"
+                        
+                finally:
+                    sys.stdout = original_stdout
+        finally:
+            clear_trace()
+
+    @given(market_data_strategy(asset_type="crypto"))
+    @settings(max_examples=20)
+    def test_analysis_operations_are_logged_with_indicators(self, market_data):
+        """
+        **Feature: observability-logging, Property 3: Analysis operations are logged with indicators**
+        **Validates: Requirements 1.3**
+
+        For any analysis operation, the log entry SHALL include the indicators
+        calculated and the resulting recommendation.
+        """
+        from src.utils.trace_context import create_trace, clear_trace
+        
+        trace_id = create_trace()
+        
+        try:
+            engine = AnalysisEngine()
+            
+            # Capture logs
+            captured_output = StringIO()
+            original_stdout = sys.stdout
+            sys.stdout = captured_output
+            
+            try:
+                # Analyze crypto data
+                tips = engine.analyze_crypto([market_data])
+                
+                # Restore stdout
+                sys.stdout = original_stdout
+                output = captured_output.getvalue()
+                
+                # Parse log entries
+                log_lines = output.strip().split('\n')
+                log_entries = [json.loads(line) for line in log_lines if line.strip()]
+                
+                # Property: Log entries should include indicators and recommendation
+                analysis_logs = [e for e in log_entries if "indicators" in e.get("context", {})]
+                assert len(analysis_logs) > 0, "No logs with indicators found"
+                
+                for log_entry in analysis_logs:
+                    context = log_entry.get("context", {})
+                    if "indicators" in context:
+                        assert isinstance(context["indicators"], list), "Indicators should be a list"
+                        if "recommendation" in context:
+                            assert context["recommendation"] in ["BUY", "SELL", "HOLD"], "Invalid recommendation"
+                
+            finally:
+                sys.stdout = original_stdout
+        finally:
+            clear_trace()
+
+    @given(st.text(min_size=1, max_size=100))
+    @settings(max_examples=20)
+    def test_email_operations_are_logged_with_required_fields(self, recipient):
+        """
+        **Feature: observability-logging, Property 4: Email operations are logged with required fields**
+        **Validates: Requirements 1.4**
+
+        For any email send operation, the log entry SHALL include recipient,
+        subject, and delivery status.
+        """
+        from src.utils.trace_context import create_trace, clear_trace
+        
+        trace_id = create_trace()
+        
+        try:
+            email_service = EmailService()
+            
+            # Capture logs
+            captured_output = StringIO()
+            original_stdout = sys.stdout
+            sys.stdout = captured_output
+            
+            try:
+                # Mock SMTP to prevent actual email sending
+                with patch('src.services.email_service.smtplib.SMTP'):
+                    # Attempt to send email (will fail due to mock, but logs should be created)
+                    email_service.send_email(recipient, "Test Subject", "Test Content", "morning")
+                    
+                    # Restore stdout
+                    sys.stdout = original_stdout
+                    output = captured_output.getvalue()
+                    
+                    # Parse log entries
+                    log_lines = output.strip().split('\n')
+                    log_entries = [json.loads(line) for line in log_lines if line.strip()]
+                    
+                    # Property: Log entries should include recipient, subject, and delivery_type
+                    email_logs = [e for e in log_entries if "recipient" in e.get("context", {})]
+                    assert len(email_logs) > 0, "No logs with recipient found"
+                    
+                    for log_entry in email_logs:
+                        context = log_entry.get("context", {})
+                        assert "recipient" in context, "Missing 'recipient' field"
+                        assert "subject" in context, "Missing 'subject' field"
+                        assert "delivery_type" in context, "Missing 'delivery_type' field"
+                        assert context["recipient"] == recipient
+                        assert context["subject"] == "Test Subject"
+                        assert context["delivery_type"] == "morning"
+                
+            finally:
+                sys.stdout = original_stdout
+        finally:
+            clear_trace()
+
+    @given(st.text(min_size=1, max_size=100))
+    @settings(max_examples=20)
+    def test_error_logging_includes_full_context(self, error_message):
+        """
+        **Feature: observability-logging, Property 5: Error logging includes full context**
+        **Validates: Requirements 1.5**
+
+        For any error that occurs, the error log entry SHALL include exception type,
+        message, and stack trace.
+        """
+        from src.utils.trace_context import create_trace, clear_trace
+        
+        trace_id = create_trace()
+        
+        try:
+            # Capture logs
+            captured_output = StringIO()
+            original_stdout = sys.stdout
+            sys.stdout = captured_output
+            
+            try:
+                logger = StructuredLogger("test_component")
+                
+                # Create and log an exception
+                try:
+                    raise ValueError(error_message)
+                except ValueError as e:
+                    logger.error("Test error occurred", exception=e)
+                
+                # Restore stdout
+                sys.stdout = original_stdout
+                output = captured_output.getvalue()
+                
+                # Parse log entry
+                log_entry = json.loads(output.strip())
+                
+                # Property: Error log should include exception details
+                assert "exception" in log_entry, "Missing 'exception' field"
+                assert "type" in log_entry["exception"], "Missing exception 'type'"
+                assert "message" in log_entry["exception"], "Missing exception 'message'"
+                assert "stack_trace" in log_entry["exception"], "Missing exception 'stack_trace'"
+                
+                # Property: Exception details should match
+                assert log_entry["exception"]["type"] == "ValueError"
+                assert error_message in log_entry["exception"]["message"]
+                
+            finally:
+                sys.stdout = original_stdout
+        finally:
+            clear_trace()
 

@@ -4,16 +4,20 @@ from fastapi import APIRouter, Query, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from src.database.db import get_db
 from src.database.models import TipRecord, MarketDataRecord, UserProfile
 from src.models.trading_tip import DashboardTip, TipSource
 from src.models.market_data import MarketData, DataSource, HistoricalData
 from src.services.user_service import UserService
-from pydantic import BaseModel, EmailStr
+from src.utils.event_store import EventStore
+from pydantic import BaseModel, ConfigDict, EmailStr
 import json
 
 router = APIRouter()
+
+# Global event store instance for debug endpoints
+_event_store = EventStore()
 
 
 # Pydantic models for user endpoints
@@ -43,8 +47,7 @@ class UserProfileResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 def _parse_tip_record(record: TipRecord) -> DashboardTip:
@@ -136,7 +139,7 @@ async def get_tips(
     
     # Filter by date range if provided
     if days and days > 0:
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         query = query.filter(TipRecord.generated_at >= cutoff_date)
     
     # Get total count before pagination
@@ -219,7 +222,7 @@ async def get_tip_history(
     Returns:
         Historical tips with timestamps and pagination info
     """
-    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     
     query = db.query(TipRecord).filter(TipRecord.generated_at >= cutoff_date)
     
@@ -397,3 +400,260 @@ async def delete_user(
         return {"message": "User deleted successfully"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# Debug API Endpoints
+
+@router.get("/debug/status")
+async def debug_status():
+    """
+    Get current scheduler status and next delivery times.
+    
+    Returns:
+        Scheduler status and next scheduled delivery times
+    """
+    try:
+        # Get recent events to determine scheduler state
+        recent_events = _event_store.get_recent_events(limit=100)
+        
+        # Find most recent delivery events
+        delivery_events = [e for e in recent_events if "delivery" in e.event_type]
+        
+        # Determine if scheduler is running based on recent activity
+        is_running = len(delivery_events) > 0
+        
+        # Extract next delivery times from context if available
+        next_deliveries = []
+        for event in delivery_events[-2:]:  # Check last 2 delivery events
+            if event.context and "next_delivery_time" in event.context:
+                next_deliveries.append(event.context["next_delivery_time"])
+        
+        return {
+            "scheduler_running": is_running,
+            "next_deliveries": next_deliveries,
+            "total_events": _event_store.size(),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving scheduler status: {str(e)}")
+
+
+@router.get("/debug/execution-history")
+async def debug_execution_history(limit: int = Query(50, ge=1, le=500)):
+    """
+    Get recent delivery execution attempts.
+    
+    Args:
+        limit: Maximum number of execution records to return
+        
+    Returns:
+        Recent delivery attempts with timestamps and status
+    """
+    try:
+        # Get delivery events
+        delivery_events = _event_store.get_events_by_type("delivery_start", limit=limit)
+        delivery_events.extend(_event_store.get_events_by_type("delivery_complete", limit=limit))
+        
+        # Sort by timestamp
+        delivery_events.sort(key=lambda e: e.timestamp)
+        
+        # Format execution history
+        execution_history = []
+        for event in delivery_events[-limit:]:
+            execution_history.append({
+                "delivery_id": event.context.get("delivery_id", event.id),
+                "trace_id": event.trace_id,
+                "delivery_type": event.context.get("delivery_type", "unknown"),
+                "timestamp": event.timestamp,
+                "event_type": event.event_type,
+                "status": "in_progress" if event.event_type == "delivery_start" else "completed",
+                "message": event.message,
+                "context": event.context
+            })
+        
+        return {
+            "execution_history": execution_history,
+            "count": len(execution_history),
+            "limit": limit
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving execution history: {str(e)}")
+
+
+@router.get("/debug/fetch-history")
+async def debug_fetch_history(limit: int = Query(50, ge=1, le=500)):
+    """
+    Get recent market data fetch attempts.
+    
+    Args:
+        limit: Maximum number of fetch records to return
+        
+    Returns:
+        Recent fetch attempts with sources and results
+    """
+    try:
+        # Get fetch events
+        fetch_events = _event_store.get_events_by_type("fetch_start", limit=limit)
+        fetch_events.extend(_event_store.get_events_by_type("fetch_complete", limit=limit))
+        
+        # Sort by timestamp
+        fetch_events.sort(key=lambda e: e.timestamp)
+        
+        # Format fetch history
+        fetch_history = []
+        for event in fetch_events[-limit:]:
+            fetch_history.append({
+                "fetch_id": event.context.get("fetch_id", event.id),
+                "trace_id": event.trace_id,
+                "source": event.context.get("source", "unknown"),
+                "symbols": event.context.get("symbols", []),
+                "timestamp": event.timestamp,
+                "event_type": event.event_type,
+                "status": "in_progress" if event.event_type == "fetch_start" else "completed",
+                "records_fetched": event.context.get("records_fetched", 0),
+                "message": event.message
+            })
+        
+        return {
+            "fetch_history": fetch_history,
+            "count": len(fetch_history),
+            "limit": limit
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving fetch history: {str(e)}")
+
+
+@router.get("/debug/errors")
+async def debug_errors(limit: int = Query(50, ge=1, le=500)):
+    """
+    Get recent error events.
+    
+    Args:
+        limit: Maximum number of error records to return
+        
+    Returns:
+        Recent errors with timestamps and context
+    """
+    try:
+        # Get error events
+        error_events = _event_store.get_events_by_type("error", limit=limit)
+        
+        # Format error log
+        error_log = []
+        for event in error_events:
+            error_log.append({
+                "error_id": event.id,
+                "trace_id": event.trace_id,
+                "timestamp": event.timestamp,
+                "component": event.component,
+                "message": event.message,
+                "context": event.context
+            })
+        
+        return {
+            "errors": error_log,
+            "count": len(error_log),
+            "limit": limit
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving errors: {str(e)}")
+
+
+@router.get("/debug/metrics")
+async def debug_metrics():
+    """
+    Get aggregated system metrics.
+    
+    Returns:
+        Aggregated statistics about system operations
+    """
+    try:
+        all_events = _event_store.get_all_events()
+        
+        # Calculate metrics
+        total_deliveries = len([e for e in all_events if e.event_type == "delivery_complete"])
+        successful_deliveries = len([e for e in all_events if e.event_type == "delivery_complete" and e.context.get("status") == "success"])
+        failed_deliveries = total_deliveries - successful_deliveries
+        
+        success_rate = (successful_deliveries / total_deliveries * 100) if total_deliveries > 0 else 0
+        
+        # Calculate average delivery duration
+        delivery_durations = [e.duration_ms for e in all_events if e.event_type == "delivery_complete" and e.duration_ms]
+        average_delivery_duration = sum(delivery_durations) / len(delivery_durations) if delivery_durations else 0
+        
+        # Count tips and emails
+        total_tips = sum(e.context.get("tips_generated", 0) for e in all_events if e.event_type == "delivery_complete")
+        total_emails = len([e for e in all_events if e.event_type == "email_sent"])
+        
+        # Fetch statistics
+        total_fetches = len([e for e in all_events if e.event_type == "fetch_complete"])
+        successful_fetches = len([e for e in all_events if e.event_type == "fetch_complete" and e.context.get("status") == "success"])
+        failed_fetches = total_fetches - successful_fetches
+        
+        fetch_durations = [e.duration_ms for e in all_events if e.event_type == "fetch_complete" and e.duration_ms]
+        average_fetch_duration = sum(fetch_durations) / len(fetch_durations) if fetch_durations else 0
+        
+        # Error count
+        recent_errors = len([e for e in all_events if e.event_type == "error"])
+        
+        return {
+            "total_deliveries": total_deliveries,
+            "successful_deliveries": successful_deliveries,
+            "failed_deliveries": failed_deliveries,
+            "success_rate": round(success_rate, 2),
+            "average_delivery_duration_ms": round(average_delivery_duration, 2),
+            "total_tips_generated": total_tips,
+            "total_emails_sent": total_emails,
+            "total_fetch_attempts": total_fetches,
+            "successful_fetches": successful_fetches,
+            "failed_fetches": failed_fetches,
+            "average_fetch_duration_ms": round(average_fetch_duration, 2),
+            "recent_errors_count": recent_errors,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating metrics: {str(e)}")
+
+
+@router.get("/debug/trace/{trace_id}")
+async def debug_trace(trace_id: str):
+    """
+    Get complete trace for a specific operation.
+    
+    Args:
+        trace_id: The trace ID to retrieve
+        
+    Returns:
+        All log entries for the trace in chronological order
+    """
+    try:
+        # Get all events for this trace
+        trace_events = _event_store.get_events_by_trace(trace_id)
+        
+        if not trace_events:
+            raise HTTPException(status_code=404, detail=f"Trace {trace_id} not found")
+        
+        # Format trace events
+        trace_data = []
+        for event in trace_events:
+            trace_data.append({
+                "event_id": event.id,
+                "timestamp": event.timestamp,
+                "event_type": event.event_type,
+                "component": event.component,
+                "message": event.message,
+                "context": event.context,
+                "duration_ms": event.duration_ms
+            })
+        
+        return {
+            "trace_id": trace_id,
+            "events": trace_data,
+            "event_count": len(trace_data),
+            "start_time": trace_events[0].timestamp if trace_events else None,
+            "end_time": trace_events[-1].timestamp if trace_events else None
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving trace: {str(e)}")

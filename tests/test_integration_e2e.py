@@ -2,7 +2,7 @@
 
 import pytest
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, MagicMock, call
 from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
@@ -193,7 +193,7 @@ class TestSchedulerToDashboardFlow:
                                 confidence=mock_tip.confidence,
                                 indicators=json.dumps(mock_tip.indicators),
                                 sources=json.dumps([{"name": s.name, "url": s.url} for s in mock_tip.sources]),
-                                generated_at=datetime.utcnow(),
+                                generated_at=datetime.now(timezone.utc),
                                 delivery_type="morning"
                             )
                             test_session.add(tip_record)
@@ -224,7 +224,7 @@ class TestSchedulerToDashboardFlow:
             }),
             source_name="CoinGecko",
             source_url="https://coingecko.com",
-            fetched_at=datetime.utcnow()
+            fetched_at=datetime.now(timezone.utc)
         )
         test_session.add(market_data_record)
         test_session.commit()
@@ -455,7 +455,7 @@ class TestEndToEndDashboardFlow:
                 confidence=50 + (i * 10),
                 indicators=json.dumps(["RSI", "MACD"]),
                 sources=json.dumps([{"name": "Test", "url": "https://example.com"}]),
-                generated_at=datetime.utcnow() - timedelta(hours=i),
+                generated_at=datetime.now(timezone.utc) - timedelta(hours=i),
                 delivery_type="morning"
             )
             test_session.add(tip)
@@ -480,7 +480,7 @@ class TestEndToEndDashboardFlow:
             confidence=75,
             indicators=json.dumps(["RSI"]),
             sources=json.dumps([{"name": "Test", "url": "https://example.com"}]),
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             delivery_type="morning"
         )
         
@@ -493,7 +493,7 @@ class TestEndToEndDashboardFlow:
             confidence=60,
             indicators=json.dumps(["SMA"]),
             sources=json.dumps([{"name": "Test", "url": "https://example.com"}]),
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             delivery_type="morning"
         )
         
@@ -526,7 +526,7 @@ class TestEndToEndDashboardFlow:
                 confidence=75,
                 indicators=json.dumps(["RSI"]),
                 sources=json.dumps([{"name": "Test", "url": "https://example.com"}]),
-                generated_at=datetime.utcnow() - timedelta(days=i),
+                generated_at=datetime.now(timezone.utc) - timedelta(days=i),
                 delivery_type="morning"
             )
             test_session.add(tip)
@@ -557,7 +557,7 @@ class TestEndToEndDashboardFlow:
             }),
             source_name="CoinGecko",
             source_url="https://coingecko.com",
-            fetched_at=datetime.utcnow()
+            fetched_at=datetime.now(timezone.utc)
         )
         test_session.add(market_data)
         test_session.commit()

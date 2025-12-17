@@ -1,8 +1,8 @@
 """SQLAlchemy database models for persistent storage."""
 
 from sqlalchemy import Column, String, Float, Integer, DateTime, Text, Enum
-from sqlalchemy.ext.declarative import declarative_base
-from datetime import datetime
+from sqlalchemy.orm import declarative_base
+from datetime import datetime, timezone
 import enum
 
 Base = declarative_base()
@@ -20,7 +20,7 @@ class TipRecord(Base):
     confidence = Column(Integer, nullable=False)
     indicators = Column(String, nullable=True)  # JSON string
     sources = Column(String, nullable=True)  # JSON string
-    generated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    generated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     delivery_type = Column(String, nullable=False)  # "morning" or "evening"
 
 
@@ -37,7 +37,7 @@ class MarketDataRecord(Base):
     historical_data = Column(String, nullable=True)  # JSON string
     source_name = Column(String, nullable=False)
     source_url = Column(String, nullable=False)
-    fetched_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    fetched_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class DeliveryLog(Base):
@@ -50,7 +50,7 @@ class DeliveryLog(Base):
     delivery_type = Column(String, nullable=False)  # "morning" or "evening"
     attempt_number = Column(Integer, nullable=False, default=1)
     error_message = Column(Text, nullable=True)
-    attempted_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    attempted_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class UserProfile(Base):
@@ -62,5 +62,5 @@ class UserProfile(Base):
     morning_time = Column(String, nullable=True)  # HH:MM format
     evening_time = Column(String, nullable=True)  # HH:MM format
     asset_preferences = Column(String, nullable=True)  # JSON string
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

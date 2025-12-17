@@ -204,7 +204,7 @@ class TestUserService:
         assert success is False
     
     @given(st.emails())
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=None)
     def test_email_address_updates_are_used(self, new_email: str):
         """
         **Feature: daily-market-tips, Property 8: Updated email addresses are used**

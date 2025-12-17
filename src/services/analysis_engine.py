@@ -2,11 +2,25 @@
 
 from src.models.market_data import MarketData
 from src.models.trading_tip import TradingTip, TipSource
+from src.utils.logger import StructuredLogger
+from src.utils.trace_context import get_current_trace
+from src.utils.event_store import EventStore
 from typing import Literal
+import time
 
 
 class AnalysisEngine:
     """Generates trading recommendations based on market data."""
+
+    def __init__(self, event_store: EventStore | None = None):
+        """
+        Initialize the analysis engine.
+
+        Args:
+            event_store: Optional event store for logging events
+        """
+        self.logger = StructuredLogger("AnalysisEngine")
+        self.event_store = event_store
 
     def _calculate_sma(self, prices: list[float], period: int) -> float | None:
         """Calculate Simple Moving Average."""
@@ -146,46 +160,123 @@ class AnalysisEngine:
         Returns:
             List of trading tips with reasoning and indicators
         """
+        trace_id = get_current_trace()
+        start_time = time.time()
         tips = []
         
-        for data in market_data:
-            if data.type != "crypto":
-                continue
-            
-            prices = data.historical_data.prices
-            
-            # Calculate indicators
-            indicators = {
-                "rsi": self._calculate_rsi(prices),
-                "sma_short": self._calculate_sma(prices, 5),
-                "sma_long": self._calculate_sma(prices, 20),
-                "macd": self._calculate_macd(prices)[0],
-            }
-            
-            # Generate recommendation
-            recommendation, confidence, reasoning = self._generate_recommendation(
-                data, indicators, "crypto"
+        try:
+            self.logger.info(
+                "Starting cryptocurrency analysis",
+                context={
+                    "trace_id": trace_id,
+                    "data_count": len(market_data),
+                }
             )
             
-            # Collect used indicators
-            used_indicators = []
-            if indicators["rsi"] is not None:
-                used_indicators.append("RSI")
-            if indicators["sma_short"] is not None and indicators["sma_long"] is not None:
-                used_indicators.append("SMA")
-            if indicators["macd"] is not None:
-                used_indicators.append("MACD")
+            if self.event_store and trace_id:
+                self.event_store.add_event(
+                    trace_id=trace_id,
+                    event_type="analysis_start",
+                    component="AnalysisEngine",
+                    message="Starting cryptocurrency analysis",
+                    context={"asset_type": "crypto", "data_count": len(market_data)},
+                )
             
-            tip = TradingTip(
-                symbol=data.symbol,
-                type="crypto",
-                recommendation=recommendation,
-                reasoning=reasoning,
-                confidence=confidence,
-                indicators=used_indicators,
-                sources=[TipSource(name=data.source.name, url=data.source.url)]
+            for data in market_data:
+                if data.type != "crypto":
+                    continue
+                
+                prices = data.historical_data.prices
+                
+                # Calculate indicators
+                indicators = {
+                    "rsi": self._calculate_rsi(prices),
+                    "sma_short": self._calculate_sma(prices, 5),
+                    "sma_long": self._calculate_sma(prices, 20),
+                    "macd": self._calculate_macd(prices)[0],
+                }
+                
+                # Generate recommendation
+                recommendation, confidence, reasoning = self._generate_recommendation(
+                    data, indicators, "crypto"
+                )
+                
+                # Collect used indicators
+                used_indicators = []
+                if indicators["rsi"] is not None:
+                    used_indicators.append("RSI")
+                if indicators["sma_short"] is not None and indicators["sma_long"] is not None:
+                    used_indicators.append("SMA")
+                if indicators["macd"] is not None:
+                    used_indicators.append("MACD")
+                
+                # Log analysis result
+                self.logger.info(
+                    f"Cryptocurrency analysis completed for {data.symbol}",
+                    context={
+                        "trace_id": trace_id,
+                        "symbol": data.symbol,
+                        "recommendation": recommendation,
+                        "confidence": confidence,
+                        "indicators": used_indicators,
+                    }
+                )
+                
+                if self.event_store and trace_id:
+                    self.event_store.add_event(
+                        trace_id=trace_id,
+                        event_type="analysis_complete",
+                        component="AnalysisEngine",
+                        message=f"Analysis completed for {data.symbol}",
+                        context={
+                            "symbol": data.symbol,
+                            "recommendation": recommendation,
+                            "confidence": confidence,
+                            "indicators": used_indicators,
+                        },
+                    )
+                
+                tip = TradingTip(
+                    symbol=data.symbol,
+                    type="crypto",
+                    recommendation=recommendation,
+                    reasoning=reasoning,
+                    confidence=confidence,
+                    indicators=used_indicators,
+                    sources=[TipSource(name=data.source.name, url=data.source.url)]
+                )
+                tips.append(tip)
+            
+            duration_ms = (time.time() - start_time) * 1000
+            self.logger.info(
+                "Cryptocurrency analysis completed",
+                context={
+                    "trace_id": trace_id,
+                    "tips_generated": len(tips),
+                    "duration_ms": duration_ms,
+                }
             )
-            tips.append(tip)
+            
+            if self.event_store and trace_id:
+                self.event_store.add_event(
+                    trace_id=trace_id,
+                    event_type="analysis_complete",
+                    component="AnalysisEngine",
+                    message="Cryptocurrency analysis completed",
+                    context={"asset_type": "crypto", "tips_generated": len(tips)},
+                    duration_ms=duration_ms,
+                )
+        
+        except Exception as e:
+            self.logger.error(
+                "Error during cryptocurrency analysis",
+                context={
+                    "trace_id": trace_id,
+                    "error_type": type(e).__name__,
+                },
+                exception=e,
+            )
+            raise
         
         return tips
 
@@ -199,45 +290,122 @@ class AnalysisEngine:
         Returns:
             List of trading tips with reasoning and indicators
         """
+        trace_id = get_current_trace()
+        start_time = time.time()
         tips = []
         
-        for data in market_data:
-            if data.type != "stock":
-                continue
-            
-            prices = data.historical_data.prices
-            
-            # Calculate indicators
-            indicators = {
-                "rsi": self._calculate_rsi(prices),
-                "sma_short": self._calculate_sma(prices, 5),
-                "sma_long": self._calculate_sma(prices, 20),
-                "macd": self._calculate_macd(prices)[0],
-            }
-            
-            # Generate recommendation
-            recommendation, confidence, reasoning = self._generate_recommendation(
-                data, indicators, "stock"
+        try:
+            self.logger.info(
+                "Starting stock analysis",
+                context={
+                    "trace_id": trace_id,
+                    "data_count": len(market_data),
+                }
             )
             
-            # Collect used indicators
-            used_indicators = []
-            if indicators["rsi"] is not None:
-                used_indicators.append("RSI")
-            if indicators["sma_short"] is not None and indicators["sma_long"] is not None:
-                used_indicators.append("SMA")
-            if indicators["macd"] is not None:
-                used_indicators.append("MACD")
+            if self.event_store and trace_id:
+                self.event_store.add_event(
+                    trace_id=trace_id,
+                    event_type="analysis_start",
+                    component="AnalysisEngine",
+                    message="Starting stock analysis",
+                    context={"asset_type": "stock", "data_count": len(market_data)},
+                )
             
-            tip = TradingTip(
-                symbol=data.symbol,
-                type="stock",
-                recommendation=recommendation,
-                reasoning=reasoning,
-                confidence=confidence,
-                indicators=used_indicators,
-                sources=[TipSource(name=data.source.name, url=data.source.url)]
+            for data in market_data:
+                if data.type != "stock":
+                    continue
+                
+                prices = data.historical_data.prices
+                
+                # Calculate indicators
+                indicators = {
+                    "rsi": self._calculate_rsi(prices),
+                    "sma_short": self._calculate_sma(prices, 5),
+                    "sma_long": self._calculate_sma(prices, 20),
+                    "macd": self._calculate_macd(prices)[0],
+                }
+                
+                # Generate recommendation
+                recommendation, confidence, reasoning = self._generate_recommendation(
+                    data, indicators, "stock"
+                )
+                
+                # Collect used indicators
+                used_indicators = []
+                if indicators["rsi"] is not None:
+                    used_indicators.append("RSI")
+                if indicators["sma_short"] is not None and indicators["sma_long"] is not None:
+                    used_indicators.append("SMA")
+                if indicators["macd"] is not None:
+                    used_indicators.append("MACD")
+                
+                # Log analysis result
+                self.logger.info(
+                    f"Stock analysis completed for {data.symbol}",
+                    context={
+                        "trace_id": trace_id,
+                        "symbol": data.symbol,
+                        "recommendation": recommendation,
+                        "confidence": confidence,
+                        "indicators": used_indicators,
+                    }
+                )
+                
+                if self.event_store and trace_id:
+                    self.event_store.add_event(
+                        trace_id=trace_id,
+                        event_type="analysis_complete",
+                        component="AnalysisEngine",
+                        message=f"Analysis completed for {data.symbol}",
+                        context={
+                            "symbol": data.symbol,
+                            "recommendation": recommendation,
+                            "confidence": confidence,
+                            "indicators": used_indicators,
+                        },
+                    )
+                
+                tip = TradingTip(
+                    symbol=data.symbol,
+                    type="stock",
+                    recommendation=recommendation,
+                    reasoning=reasoning,
+                    confidence=confidence,
+                    indicators=used_indicators,
+                    sources=[TipSource(name=data.source.name, url=data.source.url)]
+                )
+                tips.append(tip)
+            
+            duration_ms = (time.time() - start_time) * 1000
+            self.logger.info(
+                "Stock analysis completed",
+                context={
+                    "trace_id": trace_id,
+                    "tips_generated": len(tips),
+                    "duration_ms": duration_ms,
+                }
             )
-            tips.append(tip)
+            
+            if self.event_store and trace_id:
+                self.event_store.add_event(
+                    trace_id=trace_id,
+                    event_type="analysis_complete",
+                    component="AnalysisEngine",
+                    message="Stock analysis completed",
+                    context={"asset_type": "stock", "tips_generated": len(tips)},
+                    duration_ms=duration_ms,
+                )
+        
+        except Exception as e:
+            self.logger.error(
+                "Error during stock analysis",
+                context={
+                    "trace_id": trace_id,
+                    "error_type": type(e).__name__,
+                },
+                exception=e,
+            )
+            raise
         
         return tips

@@ -2,7 +2,7 @@
 
 import pytest
 from hypothesis import given, strategies as st, settings
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import Mock, patch, MagicMock
 from src.services.email_service import EmailService
 from src.models.trading_tip import TradingTip, TipSource, EmailContent
@@ -142,7 +142,7 @@ class TestEmailService:
         service.log_delivery(
             status="success",
             recipient="test@example.com",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             delivery_type="morning",
             attempt_number=1
         )
@@ -159,7 +159,7 @@ class TestEmailService:
         service.log_delivery(
             status="success",
             recipient="test@example.com",
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             delivery_type="morning",
             attempt_number=1
         )

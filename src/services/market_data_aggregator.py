@@ -4,6 +4,8 @@ from typing import Optional
 from src.models.market_data import MarketData, HistoricalData, DataSource
 from datetime import datetime
 import requests
+from src.utils.logger import StructuredLogger
+from src.utils.trace_context import get_current_trace
 
 
 class MarketDataAggregator:
@@ -14,6 +16,7 @@ class MarketDataAggregator:
         self.coingecko_base_url = "https://api.coingecko.com/api/v3"
         self.alphavantage_base_url = "https://www.alphavantage.co/query"
         self.alphavantage_api_key = None  # Can be set via config
+        self.logger = StructuredLogger("MarketDataAggregator")
 
     def fetch_crypto_data(self, symbols: list[str]) -> list[MarketData]:
         """
@@ -26,9 +29,21 @@ class MarketDataAggregator:
             List of MarketData objects with source attribution
         """
         market_data_list = []
+        trace_id = get_current_trace()
         
         for symbol in symbols:
             try:
+                # Log fetch start
+                self.logger.info(
+                    "Starting cryptocurrency data fetch",
+                    context={
+                        "trace_id": trace_id,
+                        "source": "CoinGecko",
+                        "symbol": symbol,
+                        "type": "crypto"
+                    }
+                )
+                
                 # Fetch current data from CoinGecko
                 url = f"{self.coingecko_base_url}/simple/price"
                 params = {
@@ -44,6 +59,15 @@ class MarketDataAggregator:
                 data = response.json()
                 
                 if symbol.lower() not in data:
+                    self.logger.warning(
+                        "Cryptocurrency symbol not found in response",
+                        context={
+                            "trace_id": trace_id,
+                            "source": "CoinGecko",
+                            "symbol": symbol,
+                            "result": "not_found"
+                        }
+                    )
                     continue
                 
                 crypto_data = data[symbol.lower()]
@@ -65,9 +89,31 @@ class MarketDataAggregator:
                     )
                 )
                 market_data_list.append(market_data)
+                
+                # Log successful fetch
+                self.logger.info(
+                    "Successfully fetched cryptocurrency data",
+                    context={
+                        "trace_id": trace_id,
+                        "source": "CoinGecko",
+                        "symbol": symbol,
+                        "result": "success",
+                        "current_price": market_data.current_price,
+                        "price_change_24h": market_data.price_change_24h
+                    }
+                )
             except Exception as e:
-                # Log error and continue with next symbol
-                print(f"Error fetching crypto data for {symbol}: {e}")
+                # Log error with full context
+                self.logger.error(
+                    f"Error fetching cryptocurrency data for {symbol}",
+                    context={
+                        "trace_id": trace_id,
+                        "source": "CoinGecko",
+                        "symbol": symbol,
+                        "result": "failed"
+                    },
+                    exception=e
+                )
                 continue
         
         return market_data_list
@@ -83,9 +129,21 @@ class MarketDataAggregator:
             List of MarketData objects with source attribution
         """
         market_data_list = []
+        trace_id = get_current_trace()
         
         for symbol in symbols:
             try:
+                # Log fetch start
+                self.logger.info(
+                    "Starting stock data fetch",
+                    context={
+                        "trace_id": trace_id,
+                        "source": "Alpha Vantage",
+                        "symbol": symbol,
+                        "type": "stock"
+                    }
+                )
+                
                 # Fetch current data from Alpha Vantage
                 params = {
                     "function": "GLOBAL_QUOTE",
@@ -98,6 +156,15 @@ class MarketDataAggregator:
                 data = response.json()
                 
                 if "Global Quote" not in data or not data["Global Quote"]:
+                    self.logger.warning(
+                        "Stock symbol not found in response",
+                        context={
+                            "trace_id": trace_id,
+                            "source": "Alpha Vantage",
+                            "symbol": symbol,
+                            "result": "not_found"
+                        }
+                    )
                     continue
                 
                 quote = data["Global Quote"]
@@ -119,9 +186,31 @@ class MarketDataAggregator:
                     )
                 )
                 market_data_list.append(market_data)
+                
+                # Log successful fetch
+                self.logger.info(
+                    "Successfully fetched stock data",
+                    context={
+                        "trace_id": trace_id,
+                        "source": "Alpha Vantage",
+                        "symbol": symbol,
+                        "result": "success",
+                        "current_price": market_data.current_price,
+                        "price_change_24h": market_data.price_change_24h
+                    }
+                )
             except Exception as e:
-                # Log error and continue with next symbol
-                print(f"Error fetching stock data for {symbol}: {e}")
+                # Log error with full context
+                self.logger.error(
+                    f"Error fetching stock data for {symbol}",
+                    context={
+                        "trace_id": trace_id,
+                        "source": "Alpha Vantage",
+                        "symbol": symbol,
+                        "result": "failed"
+                    },
+                    exception=e
+                )
                 continue
         
         return market_data_list

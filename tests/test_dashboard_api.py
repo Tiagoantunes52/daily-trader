@@ -1,7 +1,7 @@
 """Tests for Dashboard API endpoints."""
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 import json
@@ -27,7 +27,7 @@ def sample_tips(test_session: Session):
             confidence=50 + (i * 10),
             indicators=json.dumps(["RSI", "MACD"]),
             sources=json.dumps([{"name": "Test Source", "url": "https://example.com"}]),
-            generated_at=datetime.utcnow() - timedelta(days=i),
+            generated_at=datetime.now(timezone.utc) - timedelta(days=i),
             delivery_type="morning" if i % 2 == 0 else "evening"
         )
         test_session.add(tip)
@@ -58,7 +58,7 @@ def sample_market_data(test_session: Session):
             }),
             source_name="Test Exchange",
             source_url="https://example.com",
-            fetched_at=datetime.utcnow()
+            fetched_at=datetime.now(timezone.utc)
         )
         test_session.add(record)
         data.append(record)

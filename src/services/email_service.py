@@ -5,25 +5,31 @@ import time
 import uuid
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from src.models.trading_tip import EmailContent, TradingTip
 from src.models.market_data import MarketData
 from src.utils.config import config
 from src.database.models import DeliveryLog
+from src.utils.logger import StructuredLogger
+from src.utils.trace_context import get_current_trace
+from src.utils.event_store import EventStore
 
 
 class EmailService:
     """Handles email sending with retry logic and delivery logging."""
 
-    def __init__(self, db_session: Session = None):
+    def __init__(self, db_session: Session = None, event_store: EventStore = None):
         """
         Initialize email service.
         
         Args:
             db_session: SQLAlchemy database session for logging
+            event_store: EventStore instance for tracking operations
         """
         self.db_session = db_session
+        self.event_store = event_store
+        self.logger = StructuredLogger("email_service")
         self.smtp_server = config.email.smtp_server
         self.smtp_port = config.email.smtp_port
         self.sender_email = config.email.sender_email
@@ -43,7 +49,32 @@ class EmailService:
         Returns:
             True if sent successfully, False otherwise
         """
+        trace_id = get_current_trace()
         max_attempts = len(self.retry_delays) + 1
+        
+        # Log email send start
+        self.logger.info(
+            "Starting email send operation",
+            context={
+                "recipient": recipient,
+                "subject": subject,
+                "delivery_type": delivery_type,
+                "trace_id": trace_id
+            }
+        )
+        
+        if self.event_store and trace_id:
+            self.event_store.add_event(
+                trace_id=trace_id,
+                event_type="email_send_start",
+                component="email_service",
+                message=f"Starting email send to {recipient}",
+                context={
+                    "recipient": recipient,
+                    "subject": subject,
+                    "delivery_type": delivery_type
+                }
+            )
         
         for attempt in range(1, max_attempts + 1):
             try:
@@ -66,7 +97,33 @@ class EmailService:
                     server.send_message(message)
                 
                 # Log successful delivery
-                self.log_delivery("success", recipient, datetime.utcnow(), delivery_type, attempt)
+                self.logger.info(
+                    "Email sent successfully",
+                    context={
+                        "recipient": recipient,
+                        "subject": subject,
+                        "delivery_type": delivery_type,
+                        "attempt": attempt,
+                        "trace_id": trace_id
+                    }
+                )
+                
+                if self.event_store and trace_id:
+                    self.event_store.add_event(
+                        trace_id=trace_id,
+                        event_type="email_send_complete",
+                        component="email_service",
+                        message=f"Email sent successfully to {recipient}",
+                        context={
+                            "recipient": recipient,
+                            "subject": subject,
+                            "delivery_type": delivery_type,
+                            "status": "success",
+                            "attempt": attempt
+                        }
+                    )
+                
+                self.log_delivery("success", recipient, datetime.now(timezone.utc), delivery_type, attempt)
                 return True
                 
             except Exception as e:
@@ -74,14 +131,71 @@ class EmailService:
                 
                 if attempt < max_attempts:
                     # Log retry attempt
-                    self.log_delivery("retrying", recipient, datetime.utcnow(), delivery_type, attempt, error_message)
+                    delay = self.retry_delays[attempt - 1]
+                    self.logger.warning(
+                        f"Email send failed, retrying in {delay}s",
+                        context={
+                            "recipient": recipient,
+                            "subject": subject,
+                            "delivery_type": delivery_type,
+                            "attempt": attempt,
+                            "error": error_message,
+                            "retry_delay_seconds": delay,
+                            "trace_id": trace_id
+                        }
+                    )
+                    
+                    if self.event_store and trace_id:
+                        self.event_store.add_event(
+                            trace_id=trace_id,
+                            event_type="email_send_retry",
+                            component="email_service",
+                            message=f"Email send failed, retrying in {delay}s",
+                            context={
+                                "recipient": recipient,
+                                "subject": subject,
+                                "delivery_type": delivery_type,
+                                "attempt": attempt,
+                                "error": error_message,
+                                "retry_delay_seconds": delay
+                            }
+                        )
+                    
+                    self.log_delivery("retrying", recipient, datetime.now(timezone.utc), delivery_type, attempt, error_message)
                     
                     # Wait before retrying with exponential backoff
-                    delay = self.retry_delays[attempt - 1]
                     time.sleep(delay)
                 else:
                     # Log final failure
-                    self.log_delivery("failed", recipient, datetime.utcnow(), delivery_type, attempt, error_message)
+                    self.logger.error(
+                        "Email send failed after all retry attempts",
+                        context={
+                            "recipient": recipient,
+                            "subject": subject,
+                            "delivery_type": delivery_type,
+                            "attempts": max_attempts,
+                            "error": error_message,
+                            "trace_id": trace_id
+                        },
+                        exception=e
+                    )
+                    
+                    if self.event_store and trace_id:
+                        self.event_store.add_event(
+                            trace_id=trace_id,
+                            event_type="email_send_failed",
+                            component="email_service",
+                            message=f"Email send failed after {max_attempts} attempts",
+                            context={
+                                "recipient": recipient,
+                                "subject": subject,
+                                "delivery_type": delivery_type,
+                                "attempts": max_attempts,
+                                "error": error_message
+                            }
+                        )
+                    
+                    self.log_delivery("failed", recipient, datetime.now(timezone.utc), delivery_type, attempt, error_message)
                     return False
         
         return False
@@ -127,6 +241,10 @@ class EmailService:
         """
         if self.db_session is None:
             return
+        
+        # Ensure timestamp is timezone-aware
+        if timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
         
         log_entry = DeliveryLog(
             id=str(uuid.uuid4()),
@@ -196,7 +314,7 @@ class EmailService:
         html += """
                     <div class="footer">
                         <p>This is an automated message from Daily Market Tips.</p>
-                        <p>Generated at """ + email_content.generated_at.strftime("%Y-%m-%d %H:%M:%S UTC") + """</p>
+                        <p>Generated at """ + email_content.generated_at.strftime("%Y-%m-%d %H:%M:%S") + """ UTC</p>
                     </div>
                 </div>
             </body>

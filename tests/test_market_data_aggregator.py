@@ -1,10 +1,12 @@
 """Tests for market data aggregator service."""
 
-import pytest
 from hypothesis import given, strategies as st
 from datetime import datetime
+from unittest.mock import patch, MagicMock
+import json
 from src.services.market_data_aggregator import MarketDataAggregator
 from src.models.market_data import MarketData, HistoricalData, DataSource
+from src.utils.trace_context import create_trace, clear_trace
 
 
 # Strategies for generating test data
@@ -113,3 +115,87 @@ class TestMarketDataAggregator:
         assert historical.period == "7d"
         assert len(historical.prices) == 3
         assert len(historical.timestamps) == 3
+
+    @given(st.lists(st.text(min_size=1, max_size=10, alphabet="abcdefghijklmnopqrstuvwxyz"), min_size=1, max_size=5))
+    def test_fetch_operations_logged_with_required_fields(self, symbols):
+        """
+        **Feature: observability-logging, Property 2: Fetch operations are logged with required fields**
+        
+        For any market data fetch operation, the log entry SHALL include source, symbols, and result (success/failure).
+        
+        **Validates: Requirements 1.2**
+        """
+        # Setup trace context
+        trace_id = create_trace()
+        
+        try:
+            aggregator = MarketDataAggregator()
+            
+            # Mock the logger to capture log calls
+            logged_entries = []
+            original_info = aggregator.logger.info
+            original_error = aggregator.logger.error
+            
+            def capture_info(message, context=None):
+                logged_entries.append({
+                    "level": "INFO",
+                    "message": message,
+                    "context": context or {}
+                })
+                return original_info(message, context)
+            
+            def capture_error(message, context=None, exception=None):
+                logged_entries.append({
+                    "level": "ERROR",
+                    "message": message,
+                    "context": context or {}
+                })
+                return original_error(message, context, exception)
+            
+            aggregator.logger.info = capture_info
+            aggregator.logger.error = capture_error
+            
+            # Mock requests to simulate successful fetch
+            with patch('src.services.market_data_aggregator.requests.get') as mock_get:
+                mock_response = MagicMock()
+                mock_response.json.return_value = {
+                    symbol.lower(): {
+                        "usd": 100.0,
+                        "usd_24h_change": 5.0,
+                        "usd_24h_vol": 1000000.0
+                    }
+                    for symbol in symbols
+                }
+                mock_get.return_value = mock_response
+                
+                # Fetch crypto data
+                result = aggregator.fetch_crypto_data(symbols)
+                
+                # Verify that logs were created
+                assert len(logged_entries) > 0, "At least one log entry should be created"
+                
+                # Check that completion logs have required fields (result field)
+                completion_logs = [e for e in logged_entries if "Successfully fetched" in e.get("message", "")]
+                assert len(completion_logs) > 0, "At least one successful fetch log should be created"
+                
+                for entry in completion_logs:
+                    context = entry.get("context", {})
+                    
+                    # All completion entries should have source field
+                    assert "source" in context, "Log entry must include source field"
+                    assert context["source"] in ["CoinGecko", "Alpha Vantage"], "Source must be valid"
+                    
+                    # All completion entries should have symbol field
+                    assert "symbol" in context, "Log entry must include symbol field"
+                    assert context["symbol"] in symbols, "Symbol must be from input list"
+                    
+                    # All completion entries should have result field
+                    assert "result" in context, "Log entry must include result field"
+                    assert context["result"] in ["success", "failed", "not_found"], "Result must be valid"
+                    
+                    # All entries should have trace_id
+                    assert "trace_id" in context, "Log entry must include trace_id"
+                    assert context["trace_id"] == trace_id, "Trace ID must match current trace"
+        
+        finally:
+            clear_trace()
