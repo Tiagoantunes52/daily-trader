@@ -1,11 +1,13 @@
 """Market data aggregator service for fetching data from multiple sources."""
 
+import os
 from typing import Optional
 from src.models.market_data import MarketData, HistoricalData, DataSource
 from datetime import datetime
 import requests
 from src.utils.logger import StructuredLogger
 from src.utils.trace_context import get_current_trace
+from src.utils.config import config
 
 
 class MarketDataAggregator:
@@ -15,7 +17,7 @@ class MarketDataAggregator:
         """Initialize the aggregator with API endpoints."""
         self.coingecko_base_url = "https://api.coingecko.com/api/v3"
         self.alphavantage_base_url = "https://www.alphavantage.co/query"
-        self.alphavantage_api_key = None  # Can be set via config
+        self.alphavantage_api_key = config.api.stock_api_key
         self.logger = StructuredLogger("MarketDataAggregator")
 
     def fetch_crypto_data(self, symbols: list[str]) -> list[MarketData]:
@@ -54,7 +56,7 @@ class MarketDataAggregator:
                     "include_24hr_change": "true"
                 }
                 
-                response = requests.get(url, params=params, timeout=10)
+                response = requests.get(url, params=params, timeout=30)
                 response.raise_for_status()
                 data = response.json()
                 
@@ -151,7 +153,7 @@ class MarketDataAggregator:
                     "apikey": self.alphavantage_api_key or "demo"
                 }
                 
-                response = requests.get(self.alphavantage_base_url, params=params, timeout=10)
+                response = requests.get(self.alphavantage_base_url, params=params, timeout=30)
                 response.raise_for_status()
                 data = response.json()
                 
@@ -268,7 +270,7 @@ class MarketDataAggregator:
                 "interval": "daily"
             }
             
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
             
@@ -303,7 +305,7 @@ class MarketDataAggregator:
                 "apikey": self.alphavantage_api_key or "demo"
             }
             
-            response = requests.get(self.alphavantage_base_url, params=params, timeout=10)
+            response = requests.get(self.alphavantage_base_url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
             

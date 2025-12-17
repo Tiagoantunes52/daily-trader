@@ -40,4 +40,9 @@ export const getTipHistory = async (filters = {}) => {
   return response.data
 }
 
+export const generateTips = async () => {
+  const response = await client.post('/tips/generate')
+  return response.data
+}
+
 export default client

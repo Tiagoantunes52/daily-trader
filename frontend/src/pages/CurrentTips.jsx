@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { getTips, getMarketData } from '../api/client'
+import { getTips, getMarketData, generateTips } from '../api/client'
 import TipCard from '../components/TipCard'
 import MarketDataChart from '../components/MarketDataChart'
 import FilterBar from '../components/FilterBar'
@@ -10,6 +10,7 @@ export default function CurrentTips() {
   const [tips, setTips] = useState([])
   const [marketData, setMarketData] = useState([])
   const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [error, setError] = useState(null)
   const [filters, setFilters] = useState({
     assetType: null,
@@ -55,8 +56,24 @@ export default function CurrentTips() {
     }
   }
 
+  const handleGenerateTips = async () => {
+    setGenerating(true)
+    setError(null)
+    try {
+      await generateTips()
+      // Refresh the tips after generation
+      await fetchData()
+    } catch (err) {
+      setError(err.message || 'Failed to generate tips')
+      console.error('Error generating tips:', err)
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   useEffect(() => {
-    fetchData()
+    // Generate tips on first load
+    handleGenerateTips()
   }, [])
 
   const handleFilterChange = (newFilters) => {
@@ -75,8 +92,18 @@ export default function CurrentTips() {
   return (
     <div className="current-tips-page">
       <div className="page-header">
-        <h1>Current Market Tips</h1>
-        <p>Latest trading recommendations and market analysis</p>
+        <div className="header-content">
+          <h1>Current Market Tips</h1>
+          <p>Latest trading recommendations and market analysis</p>
+        </div>
+        <button
+          className="refresh-button"
+          onClick={handleGenerateTips}
+          disabled={generating || loading}
+          title="Generate fresh market tips"
+        >
+          {generating ? '⏳ Generating...' : '🔄 Refresh Tips'}
+        </button>
       </div>
 
       <FilterBar

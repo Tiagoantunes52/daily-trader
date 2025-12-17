@@ -6,18 +6,28 @@ from sqlalchemy import desc
 from typing import Optional
 from datetime import datetime, timedelta, timezone
 from src.database.db import get_db
-from src.database.models import TipRecord, MarketDataRecord, UserProfile
+from src.database.models import TipRecord, MarketDataRecord
 from src.models.trading_tip import DashboardTip, TipSource
 from src.models.market_data import MarketData, DataSource, HistoricalData
 from src.services.user_service import UserService
+from src.services.scheduler_service import SchedulerService
 from src.utils.event_store import EventStore
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict
 import json
 
 router = APIRouter()
 
 # Global event store instance for debug endpoints
 _event_store = EventStore()
+_scheduler_service = None
+
+
+def get_scheduler_service():
+    """Get or create scheduler service instance."""
+    global _scheduler_service
+    if _scheduler_service is None:
+        _scheduler_service = SchedulerService(event_store=_event_store)
+    return _scheduler_service
 
 
 # Pydantic models for user endpoints
@@ -110,6 +120,42 @@ def _parse_market_data_record(record: MarketDataRecord) -> MarketData:
     )
 
 
+@router.post("/tips/generate")
+async def generate_tips(db: Session = Depends(get_db)):
+    """
+    Trigger tip generation pipeline on-demand.
+    
+    This endpoint fetches market data, analyzes it, and generates trading tips.
+    Useful for dashboard initialization or manual refresh.
+    
+    Args:
+        db: Database session
+        
+    Returns:
+        Generated tips and market data
+    """
+    try:
+        scheduler = get_scheduler_service()
+        
+        # Execute delivery without email (just generate and store tips)
+        scheduler.db_session = db
+        scheduler.execute_delivery("dashboard")
+        
+        # Return the newly generated tips
+        query = db.query(TipRecord).order_by(desc(TipRecord.generated_at))
+        tips = query.limit(20).all()
+        dashboard_tips = [_parse_tip_record(tip) for tip in tips]
+        
+        return {
+            "tips": dashboard_tips,
+            "total": len(dashboard_tips),
+            "generated": True,
+            "message": "Tips generated successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating tips: {str(e)}")
+
+
 @router.get("/tips")
 async def get_tips(
     asset_type: Optional[str] = Query(None, description="Filter by 'crypto' or 'stock'"),
@@ -119,7 +165,10 @@ async def get_tips(
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve market tips with optional filtering.
+    Retrieve the latest market tips (one per symbol).
+    
+    For the dashboard, this returns only the most recent tip for each symbol.
+    Use /api/tip-history for all historical tips.
     
     Args:
         asset_type: Filter by asset type (crypto/stock)
@@ -129,18 +178,33 @@ async def get_tips(
         db: Database session
         
     Returns:
-        List of trading tips with pagination info
+        List of latest trading tips with pagination info
     """
-    query = db.query(TipRecord)
+    # Get the most recent tip for each symbol
+    from sqlalchemy import func
+    
+    subquery = db.query(
+        TipRecord.symbol,
+        func.max(TipRecord.generated_at).label('max_generated_at')
+    )
     
     # Filter by asset type if provided
     if asset_type and asset_type in ["crypto", "stock"]:
-        query = query.filter(TipRecord.type == asset_type)
+        subquery = subquery.filter(TipRecord.type == asset_type)
     
     # Filter by date range if provided
     if days and days > 0:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
-        query = query.filter(TipRecord.generated_at >= cutoff_date)
+        subquery = subquery.filter(TipRecord.generated_at >= cutoff_date)
+    
+    subquery = subquery.group_by(TipRecord.symbol).subquery()
+    
+    # Join to get the full records
+    query = db.query(TipRecord).join(
+        subquery,
+        (TipRecord.symbol == subquery.c.symbol) & 
+        (TipRecord.generated_at == subquery.c.max_generated_at)
+    )
     
     # Get total count before pagination
     total = query.count()
