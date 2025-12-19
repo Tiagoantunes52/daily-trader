@@ -1,10 +1,12 @@
 """Main application entry point."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
+
 from src.api.routes import router
 from src.database.db import init_db
 from src.utils.config import config
@@ -24,7 +26,6 @@ async def lifespan(app: FastAPI):
         raise
     yield
     # Shutdown
-    pass
 
 
 # Create FastAPI app
@@ -32,7 +33,7 @@ app = FastAPI(
     title="Daily Market Tips",
     description="Expert-analyzed market insights delivered via email",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add CORS middleware
@@ -61,4 +62,5 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

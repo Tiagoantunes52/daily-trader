@@ -1,8 +1,11 @@
 """Property-based tests for metrics calculation."""
 
-from hypothesis import given, strategies as st
-from datetime import datetime, timezone, timedelta
 import uuid
+from datetime import UTC, datetime, timedelta
+
+from hypothesis import given
+from hypothesis import strategies as st
+
 from src.utils.event_store import EventStore
 from src.utils.metrics import MetricsCalculator
 
@@ -25,7 +28,7 @@ class TestMetricsCalculation:
         SHALL return success_rate equal to (successful_deliveries / total_deliveries) * 100
         """
         store = EventStore()
-        start_time = datetime.now(timezone.utc)
+        start_time = datetime.now(UTC)
         calculator = MetricsCalculator(store, start_time=start_time)
 
         # Add successful delivery complete events
@@ -174,11 +177,11 @@ class TestMetricsCalculation:
         time elapsed since the start time.
         """
         store = EventStore()
-        start_time = datetime.now(timezone.utc) - timedelta(seconds=100)
+        start_time = datetime.now(UTC) - timedelta(seconds=100)
         calculator = MetricsCalculator(store, start_time=start_time)
 
         # Add some events
-        for i in range(num_events):
+        for _i in range(num_events):
             store.add_event(
                 trace_id=str(uuid.uuid4()),
                 event_type="delivery_complete",
@@ -205,7 +208,7 @@ class TestMetricsCalculation:
         calculator = MetricsCalculator(store)
 
         # Add a mix of different event types
-        for i in range(num_deliveries):
+        for _i in range(num_deliveries):
             trace_id = str(uuid.uuid4())
 
             # Add delivery start
@@ -292,7 +295,7 @@ class TestMetricsCalculation:
         calculator = MetricsCalculator(store)
 
         # Add successful deliveries
-        for i in range(num_successful):
+        for _i in range(num_successful):
             store.add_event(
                 trace_id=str(uuid.uuid4()),
                 event_type="delivery_complete",
@@ -303,7 +306,7 @@ class TestMetricsCalculation:
             )
 
         # Add failed deliveries
-        for i in range(num_failed):
+        for _i in range(num_failed):
             store.add_event(
                 trace_id=str(uuid.uuid4()),
                 event_type="delivery_complete",

@@ -2,15 +2,15 @@
 
 import json
 import sys
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 
 class StructuredLogger:
     """Logger that outputs JSON-formatted log entries."""
 
-    def __init__(self, component: str, file_path: Optional[str] = None):
+    def __init__(self, component: str, file_path: str | None = None):
         """
         Initialize the structured logger.
 
@@ -27,8 +27,8 @@ class StructuredLogger:
         self,
         level: str,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        exception: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
+        exception: dict[str, Any] | None = None,
     ) -> str:
         """
         Format a log entry as JSON.
@@ -43,7 +43,7 @@ class StructuredLogger:
             JSON-formatted log entry
         """
         entry = {
-            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "level": level,
             "component": self.component,
             "message": message,
@@ -72,23 +72,17 @@ class StructuredLogger:
         except Exception as e:
             print(f"Failed to write log: {e}", file=sys.stderr)
 
-    def debug(
-        self, message: str, context: Optional[Dict[str, Any]] = None
-    ) -> None:
+    def debug(self, message: str, context: dict[str, Any] | None = None) -> None:
         """Log a debug message."""
         log_entry = self._format_log_entry("DEBUG", message, context)
         self._write_log(log_entry)
 
-    def info(
-        self, message: str, context: Optional[Dict[str, Any]] = None
-    ) -> None:
+    def info(self, message: str, context: dict[str, Any] | None = None) -> None:
         """Log an info message."""
         log_entry = self._format_log_entry("INFO", message, context)
         self._write_log(log_entry)
 
-    def warning(
-        self, message: str, context: Optional[Dict[str, Any]] = None
-    ) -> None:
+    def warning(self, message: str, context: dict[str, Any] | None = None) -> None:
         """Log a warning message."""
         log_entry = self._format_log_entry("WARNING", message, context)
         self._write_log(log_entry)
@@ -96,8 +90,8 @@ class StructuredLogger:
     def error(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        exception: Optional[Exception] = None,
+        context: dict[str, Any] | None = None,
+        exception: Exception | None = None,
     ) -> None:
         """Log an error message with optional exception details."""
         exc_dict = None
@@ -116,8 +110,8 @@ class StructuredLogger:
     def critical(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        exception: Optional[Exception] = None,
+        context: dict[str, Any] | None = None,
+        exception: Exception | None = None,
     ) -> None:
         """Log a critical message with optional exception details."""
         exc_dict = None
@@ -137,8 +131,8 @@ class StructuredLogger:
         self,
         level: str,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        exception: Optional[Exception] = None,
+        context: dict[str, Any] | None = None,
+        exception: Exception | None = None,
     ) -> None:
         """
         Log a message with specified level.

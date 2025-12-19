@@ -2,7 +2,7 @@
 
 import os
 from dataclasses import dataclass
-from typing import Optional
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -12,6 +12,7 @@ load_dotenv()
 @dataclass
 class EmailConfig:
     """Email service configuration."""
+
     smtp_server: str
     smtp_port: int
     sender_email: str
@@ -27,6 +28,7 @@ class EmailConfig:
 @dataclass
 class SchedulerConfig:
     """Scheduler configuration."""
+
     morning_time: str  # HH:MM format
     evening_time: str  # HH:MM format
     timezone: str = "UTC"
@@ -35,14 +37,16 @@ class SchedulerConfig:
 @dataclass
 class APIConfig:
     """API configuration."""
-    crypto_api_key: Optional[str] = None
-    stock_api_key: Optional[str] = None
+
+    crypto_api_key: str | None = None
+    stock_api_key: str | None = None
     cache_ttl: int = 300  # Cache time-to-live in seconds
 
 
 @dataclass
 class DatabaseConfig:
     """Database configuration."""
+
     database_url: str
     echo: bool = False
 
@@ -78,10 +82,10 @@ class Config:
     def validate(self) -> bool:
         """
         Validate configuration.
-        
+
         Returns:
             True if configuration is valid
-            
+
         Raises:
             ValueError if configuration is invalid
         """
@@ -89,7 +93,7 @@ class Config:
             raise ValueError("SENDER_EMAIL environment variable is required")
         if not self.email.sender_password:
             raise ValueError("SENDER_PASSWORD environment variable is required")
-        
+
         # Validate time format
         for time_str in [self.scheduler.morning_time, self.scheduler.evening_time]:
             try:
@@ -100,8 +104,8 @@ class Config:
                 if not (0 <= hour < 24 and 0 <= minute < 60):
                     raise ValueError(f"Invalid time values: {time_str}")
             except (ValueError, AttributeError) as e:
-                raise ValueError(f"Invalid scheduler time configuration: {e}")
-        
+                raise ValueError(f"Invalid scheduler time configuration: {e}") from e
+
         return True
 
 

@@ -2,10 +2,9 @@
 
 import contextvars
 import uuid
-from typing import Optional
 
 # Context variable for storing the current trace ID
-_trace_id_context: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+_trace_id_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "trace_id", default=None
 )
 
@@ -22,7 +21,7 @@ def create_trace() -> str:
     return trace_id
 
 
-def get_current_trace() -> Optional[str]:
+def get_current_trace() -> str | None:
     """
     Get the current trace ID from the context.
 

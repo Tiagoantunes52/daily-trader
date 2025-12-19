@@ -5,14 +5,14 @@
 ### 1. Update Workflow Configuration
 Edit `.github/workflows/project-automation.yml` and replace:
 ```yaml
-project-url: https://github.com/YOUR_USERNAME/daily-market-tips/projects/1
+project-url: https://github.com/YOUR_USERNAME/daily-market-tips/projects/{PROJECT_NAME}
 ```
 
 ### 2. Create GitHub Projects Board
 1. Go to your repo → Projects tab
 2. Click "New project" → "Table" layout
-3. Name it "Development Board"
-4. Note the project number from the URL
+3. Name it "{PROJECT_NAME}"
+4. Note the {PROJECT_NAME} from the URL
 
 ### 3. Sync Dependencies Locally
 ```bash

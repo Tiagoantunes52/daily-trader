@@ -1,10 +1,12 @@
 """Property-based tests for structured logging."""
 
 import json
-import pytest
-from hypothesis import given, strategies as st
-from io import StringIO
 import sys
+from io import StringIO
+
+from hypothesis import given
+from hypothesis import strategies as st
+
 from src.utils.logger import StructuredLogger
 
 
@@ -17,9 +19,7 @@ class TestLoggerJSONFormat:
         context_keys=st.lists(st.text(min_size=1, max_size=20), max_size=5),
         context_values=st.lists(st.one_of(st.text(), st.integers(), st.booleans()), max_size=5),
     )
-    def test_log_entries_have_required_fields(
-        self, level, message, context_keys, context_values
-    ):
+    def test_log_entries_have_required_fields(self, level, message, context_keys, context_values):
         """
         **Feature: observability-logging, Property 11: Log entries have required fields**
         **Validates: Requirements 3.1, 3.3**
@@ -29,7 +29,7 @@ class TestLoggerJSONFormat:
         """
         # Prepare context dict
         context = {}
-        for key, value in zip(context_keys, context_values):
+        for key, value in zip(context_keys, context_values, strict=False):
             # Ensure keys are valid identifiers
             if key and key[0].isalpha():
                 context[key] = value
@@ -120,9 +120,7 @@ class TestLoggerJSONFormat:
             [ValueError, TypeError, RuntimeError, KeyError, AttributeError]
         ),
     )
-    def test_error_log_entries_include_exception_details(
-        self, message, exception_type
-    ):
+    def test_error_log_entries_include_exception_details(self, message, exception_type):
         """
         **Feature: observability-logging, Property 13: Error log entries include exception details**
         **Validates: Requirements 3.4**

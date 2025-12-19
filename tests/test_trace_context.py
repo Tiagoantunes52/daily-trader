@@ -1,12 +1,15 @@
 """Property-based tests for trace context management."""
 
 import uuid
-from hypothesis import given, strategies as st
+
+from hypothesis import given
+from hypothesis import strategies as st
+
 from src.utils.trace_context import (
+    clear_trace,
     create_trace,
     get_current_trace,
     set_trace,
-    clear_trace,
 )
 
 
@@ -34,8 +37,8 @@ class TestTraceContextManagement:
         # Verify trace ID is a valid UUID
         try:
             uuid.UUID(trace_id)
-        except ValueError:
-            raise AssertionError(f"Trace ID {trace_id} is not a valid UUID")
+        except ValueError as err:
+            raise AssertionError(f"Trace ID {trace_id} is not a valid UUID") from err
 
         # Simulate multiple operations within the same trace
         for _ in range(num_operations):
@@ -68,8 +71,8 @@ class TestTraceContextManagement:
         for trace_id in created_traces:
             try:
                 uuid.UUID(trace_id)
-            except ValueError:
-                raise AssertionError(f"Trace ID {trace_id} is not a valid UUID")
+            except ValueError as err:
+                raise AssertionError(f"Trace ID {trace_id} is not a valid UUID") from err
 
         clear_trace()
 

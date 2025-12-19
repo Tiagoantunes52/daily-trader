@@ -65,11 +65,12 @@ addopts = "-v --tb=short"
 line-length = 100
 target-version = "py312"
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PIE", "PT", "RUF"]
-ignore = ["E501"]
+ignore = ["E501", "A003"]
 exclude = [".venv", "venv", "__pycache__", ".git"]
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]
+"src/api/*.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.12"

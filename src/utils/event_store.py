@@ -1,11 +1,11 @@
 """In-memory event store for tracking system operations and logs."""
 
-import uuid
-from datetime import datetime, timezone, timedelta
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, asdict
-from collections import deque
 import threading
+import uuid
+from collections import deque
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 
 @dataclass
@@ -18,10 +18,10 @@ class Event:
     event_type: str
     component: str
     message: str
-    context: Dict[str, Any]
-    duration_ms: Optional[float] = None
+    context: dict[str, Any]
+    duration_ms: float | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert event to dictionary, excluding None values."""
         result = asdict(self)
         # Remove None values
@@ -50,8 +50,8 @@ class EventStore:
         event_type: str,
         component: str,
         message: str,
-        context: Optional[Dict[str, Any]] = None,
-        duration_ms: Optional[float] = None,
+        context: dict[str, Any] | None = None,
+        duration_ms: float | None = None,
     ) -> Event:
         """
         Add an event to the store.
@@ -70,7 +70,7 @@ class EventStore:
         with self._lock:
             event = Event(
                 id=str(uuid.uuid4()),
-                timestamp=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                timestamp=datetime.now(UTC).isoformat().replace("+00:00", "Z"),
                 trace_id=trace_id,
                 event_type=event_type,
                 component=component,
@@ -81,7 +81,7 @@ class EventStore:
             self._events.append(event)
             return event
 
-    def get_recent_events(self, limit: int = 100) -> List[Event]:
+    def get_recent_events(self, limit: int = 100) -> list[Event]:
         """
         Get the most recent events.
 
@@ -96,7 +96,7 @@ class EventStore:
             events_list = list(self._events)
             return events_list[-limit:] if limit > 0 else []
 
-    def get_events_by_trace(self, trace_id: str) -> List[Event]:
+    def get_events_by_trace(self, trace_id: str) -> list[Event]:
         """
         Get all events for a specific trace ID.
 
@@ -109,7 +109,7 @@ class EventStore:
         with self._lock:
             return [event for event in self._events if event.trace_id == trace_id]
 
-    def get_events_by_type(self, event_type: str, limit: int = 100) -> List[Event]:
+    def get_events_by_type(self, event_type: str, limit: int = 100) -> list[Event]:
         """
         Get events of a specific type.
 
@@ -121,12 +121,10 @@ class EventStore:
             List of events of the specified type in chronological order
         """
         with self._lock:
-            matching_events = [
-                event for event in self._events if event.event_type == event_type
-            ]
+            matching_events = [event for event in self._events if event.event_type == event_type]
             return matching_events[-limit:] if limit > 0 else []
 
-    def clear_old_events(self, max_age_seconds: Optional[int] = None) -> int:
+    def clear_old_events(self, max_age_seconds: int | None = None) -> int:
         """
         Remove events older than the specified age.
 
@@ -137,7 +135,7 @@ class EventStore:
             Number of events removed
         """
         max_age = max_age_seconds or self.max_age_seconds
-        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=max_age)
+        cutoff_time = datetime.now(UTC) - timedelta(seconds=max_age)
 
         with self._lock:
             initial_count = len(self._events)
@@ -146,9 +144,7 @@ class EventStore:
             new_events = deque(maxlen=self.max_size)
             for event in self._events:
                 # Parse the ISO8601 timestamp
-                event_time = datetime.fromisoformat(
-                    event.timestamp.replace("Z", "+00:00")
-                )
+                event_time = datetime.fromisoformat(event.timestamp.replace("Z", "+00:00"))
                 if event_time > cutoff_time:
                     new_events.append(event)
 
@@ -165,7 +161,7 @@ class EventStore:
         with self._lock:
             return len(self._events)
 
-    def get_all_events(self) -> List[Event]:
+    def get_all_events(self) -> list[Event]:
         """
         Get all events in the store.
 
