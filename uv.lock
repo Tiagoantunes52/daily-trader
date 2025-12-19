@@ -245,6 +245,7 @@ dev = [
     { name = "bandit" },
     { name = "hypothesis" },
     { name = "mypy" },
+    { name = "pbr" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -255,6 +256,7 @@ dev = [
     { name = "bandit" },
     { name = "hypothesis" },
     { name = "mypy" },
+    { name = "pbr" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "ruff" },
@@ -269,6 +271,7 @@ requires-dist = [
     { name = "httpx", specifier = "==0.25.2" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = "==6.88.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = "==1.7.1" },
+    { name = "pbr", marker = "extra == 'dev'", specifier = "==7.0.3" },
     { name = "pydantic", specifier = "==2.5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==7.4.3" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==4.1.0" },
@@ -285,6 +288,7 @@ dev = [
     { name = "bandit", specifier = "==1.7.5" },
     { name = "hypothesis", specifier = "==6.88.0" },
     { name = "mypy", specifier = "==1.7.1" },
+    { name = "pbr", specifier = "==7.0.3" },
     { name = "pytest", specifier = "==7.4.3" },
     { name = "pytest-cov", specifier = "==4.1.0" },
     { name = "ruff", specifier = "==0.1.8" },
@@ -517,6 +521,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pbr"
+version = "7.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/ab/1de9a4f730edde1bdbbc2b8d19f8fa326f036b4f18b2f72cfbea7dc53c26/pbr-7.0.3.tar.gz", hash = "sha256:b46004ec30a5324672683ec848aed9e8fc500b0d261d40a3229c2d2bbfcedc29", size = 135625, upload-time = "2025-11-03T17:04:56.274Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/db/61efa0d08a99f897ef98256b03e563092d36cc38dc4ebe4a85020fe40b31/pbr-7.0.3-py2.py3-none-any.whl", hash = "sha256:ff223894eb1cd271a98076b13d3badff3bb36c424074d26334cd25aebeecea6b", size = 131898, upload-time = "2025-11-03T17:04:54.875Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -714,6 +730,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/ff/3ad7a399660b308d662ecc6444749f2f97034ecc0bdf8def8a73444d8fe5/ruff-0.1.8-py3-none-win32.whl", hash = "sha256:e49fbdfe257fa41e5c9e13c79b9e79a23a79bd0e40b9314bc53840f520c2c0b3", size = 5961330, upload-time = "2023-12-13T18:43:21.392Z" },
     { url = "https://files.pythonhosted.org/packages/10/0a/f5c0a22c3d8ac86d9481b4c3dc86f4c722ce9c544c68d9382afd46cefb06/ruff-0.1.8-py3-none-win_amd64.whl", hash = "sha256:f41f692f1691ad87f51708b823af4bb2c5c87c9248ddd3191c8f088e66ce590a", size = 6355305, upload-time = "2023-12-13T18:43:25.23Z" },
     { url = "https://files.pythonhosted.org/packages/f2/b5/142307cffba5033b35efd0d6c7f2b52b442ef7a6fdd6d92cf6f3fc385cb2/ruff-0.1.8-py3-none-win_arm64.whl", hash = "sha256:aa8ee4f8440023b0a6c3707f76cadce8657553655dcbb5fc9b2f9bb9bee389f6", size = 6107279, upload-time = "2023-12-13T18:43:28.778Z" },
+]
+
+[[package]]
+name = "setuptools"
+version = "80.9.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/5d/3bf57dcd21979b887f014ea83c24ae194cfcd12b9e0fda66b957c69d1fca/setuptools-80.9.0.tar.gz", hash = "sha256:f36b47402ecde768dbfafc46e8e4207b4360c654f1f3bb84475f0a28628fb19c", size = 1319958, upload-time = "2025-05-27T00:56:51.443Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a3/dc/17031897dae0efacfea57dfd3a82fdd2a2aeb58e0ff71b77b87e44edc772/setuptools-80.9.0-py3-none-any.whl", hash = "sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922", size = 1201486, upload-time = "2025-05-27T00:56:49.664Z" },
 ]
 
 [[package]]

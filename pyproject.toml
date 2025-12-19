@@ -44,6 +44,7 @@ dev = [
     "ruff==0.1.8",
     "mypy==1.7.1",
     "bandit==1.7.5",
+    "pbr==7.0.3"
 ]
 
 [project.urls]
@@ -88,4 +89,5 @@ dev = [
     "ruff==0.1.8",
     "mypy==1.7.1",
     "bandit==1.7.5",
+    "pbr==7.0.3"
 ]
