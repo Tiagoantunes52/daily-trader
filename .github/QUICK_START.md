@@ -30,6 +30,9 @@ This installs the new dev tools:
 # Lint
 uv run ruff check src/ tests/
 
+# Reformat
+uv run ruff format src/ tests/
+
 # Type check
 uv run mypy src/ --ignore-missing-imports
 
