@@ -80,8 +80,8 @@ disallow_untyped_defs = false
 ignore_missing_imports = true
 exclude = [".venv", "venv", "__pycache__"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest==7.4.3",
     "hypothesis==6.88.0",
     "pytest-cov==4.1.0",
