@@ -298,24 +298,24 @@ class TestSchedulerService:
                                 delivery_start_events = [
                                     e for e in events if e.event_type == "delivery_start"
                                 ]
-                                assert len(delivery_start_events) > 0, (
-                                    "delivery_start event not found"
-                                )
+                                assert (
+                                    len(delivery_start_events) > 0
+                                ), "delivery_start event not found"
 
                                 # Property: Event store should contain delivery_complete event
                                 delivery_complete_events = [
                                     e for e in events if e.event_type == "delivery_complete"
                                 ]
-                                assert len(delivery_complete_events) > 0, (
-                                    "delivery_complete event not found"
-                                )
+                                assert (
+                                    len(delivery_complete_events) > 0
+                                ), "delivery_complete event not found"
 
                                 # Property: Both events should have matching trace IDs
                                 start_trace = delivery_start_events[0].trace_id
                                 complete_trace = delivery_complete_events[0].trace_id
-                                assert start_trace == complete_trace, (
-                                    "Trace IDs don't match between start and complete events"
-                                )
+                                assert (
+                                    start_trace == complete_trace
+                                ), "Trace IDs don't match between start and complete events"
         finally:
             clear_trace()
 
@@ -384,9 +384,11 @@ class TestSchedulerService:
 
                     for log_entry in result_logs:
                         context = log_entry.get("context", {})
-                        assert context["result"] in ["success", "failed", "not_found"], (
-                            "Invalid result value"
-                        )
+                        assert context["result"] in [
+                            "success",
+                            "failed",
+                            "not_found",
+                        ], "Invalid result value"
 
                 finally:
                     sys.stdout = original_stdout
@@ -434,13 +436,15 @@ class TestSchedulerService:
                 for log_entry in analysis_logs:
                     context = log_entry.get("context", {})
                     if "indicators" in context:
-                        assert isinstance(context["indicators"], list), (
-                            "Indicators should be a list"
-                        )
+                        assert isinstance(
+                            context["indicators"], list
+                        ), "Indicators should be a list"
                         if "recommendation" in context:
-                            assert context["recommendation"] in ["BUY", "SELL", "HOLD"], (
-                                "Invalid recommendation"
-                            )
+                            assert context["recommendation"] in [
+                                "BUY",
+                                "SELL",
+                                "HOLD",
+                            ], "Invalid recommendation"
 
             finally:
                 sys.stdout = original_stdout

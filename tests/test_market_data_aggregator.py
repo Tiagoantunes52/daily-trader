@@ -107,13 +107,13 @@ class TestMarketDataAggregator:
         """
         # Property: All market data must include historical data
         assert market_data.historical_data is not None, "Market data must have historical data"
-        assert isinstance(market_data.historical_data, HistoricalData), (
-            "Historical data must be a HistoricalData object"
-        )
+        assert isinstance(
+            market_data.historical_data, HistoricalData
+        ), "Historical data must be a HistoricalData object"
         assert market_data.historical_data.period in ["24h", "7d", "30d"], "Period must be valid"
-        assert len(market_data.historical_data.prices) > 0, (
-            "Historical data must contain at least one price"
-        )
+        assert (
+            len(market_data.historical_data.prices) > 0
+        ), "Historical data must contain at least one price"
         assert len(market_data.historical_data.timestamps) == len(
             market_data.historical_data.prices
         ), "Timestamps and prices must have the same length"
@@ -193,18 +193,19 @@ class TestMarketDataAggregator:
                 completion_logs = [
                     e for e in logged_entries if "Successfully fetched" in e.get("message", "")
                 ]
-                assert len(completion_logs) > 0, (
-                    "At least one successful fetch log should be created"
-                )
+                assert (
+                    len(completion_logs) > 0
+                ), "At least one successful fetch log should be created"
 
                 for entry in completion_logs:
                     context = entry.get("context", {})
 
                     # All completion entries should have source field
                     assert "source" in context, "Log entry must include source field"
-                    assert context["source"] in ["CoinGecko", "Alpha Vantage"], (
-                        "Source must be valid"
-                    )
+                    assert context["source"] in [
+                        "CoinGecko",
+                        "Alpha Vantage",
+                    ], "Source must be valid"
 
                     # All completion entries should have symbol field
                     assert "symbol" in context, "Log entry must include symbol field"
@@ -212,9 +213,11 @@ class TestMarketDataAggregator:
 
                     # All completion entries should have result field
                     assert "result" in context, "Log entry must include result field"
-                    assert context["result"] in ["success", "failed", "not_found"], (
-                        "Result must be valid"
-                    )
+                    assert context["result"] in [
+                        "success",
+                        "failed",
+                        "not_found",
+                    ], "Result must be valid"
 
                     # All entries should have trace_id
                     assert "trace_id" in context, "Log entry must include trace_id"

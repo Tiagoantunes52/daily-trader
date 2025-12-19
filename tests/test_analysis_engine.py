@@ -150,9 +150,9 @@ class TestAnalysisEngine:
             # Verify indicators are valid technical analysis indicators
             valid_indicators = {"RSI", "SMA", "MACD", "EMA"}
             for indicator in tip.indicators:
-                assert indicator in valid_indicators, (
-                    f"Indicator {indicator} must be a valid technical analysis indicator"
-                )
+                assert (
+                    indicator in valid_indicators
+                ), f"Indicator {indicator} must be a valid technical analysis indicator"
 
     def test_crypto_analysis_generates_tips(self):
         """Test that crypto analysis generates tips."""
@@ -350,9 +350,9 @@ class TestAnalysisEngine:
 
             # Property: For each tip generated, there should be a corresponding analysis_complete event
             # with indicators in the context
-            assert len(analysis_events) == len(tips), (
-                "Each tip must have a corresponding analysis event"
-            )
+            assert len(analysis_events) == len(
+                tips
+            ), "Each tip must have a corresponding analysis event"
 
             for event in analysis_events:
                 # Each event should have indicators in context
