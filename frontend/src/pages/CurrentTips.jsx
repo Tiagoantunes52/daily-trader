@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { getTips, getMarketData, generateTips } from '../api/client'
 import TipCard from '../components/TipCard'
 import MarketDataChart from '../components/MarketDataChart'
@@ -24,7 +24,7 @@ export default function CurrentTips() {
     total: 0
   })
 
-  const fetchData = async (filterParams = {}) => {
+  const fetchData = useCallback(async (filterParams = {}) => {
     setLoading(true)
     setError(null)
     try {
@@ -54,9 +54,9 @@ export default function CurrentTips() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filters, pagination.skip, pagination.limit])
 
-  const handleGenerateTips = async () => {
+  const handleGenerateTips = useCallback(async () => {
     setGenerating(true)
     setError(null)
     try {
@@ -69,12 +69,12 @@ export default function CurrentTips() {
     } finally {
       setGenerating(false)
     }
-  }
+  }, [fetchData])
 
   useEffect(() => {
     // Generate tips on first load
     handleGenerateTips()
-  }, [])
+  }, [handleGenerateTips])
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters)

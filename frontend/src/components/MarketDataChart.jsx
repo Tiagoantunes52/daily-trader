@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import React from 'react'
 import './MarketDataChart.css'
 
@@ -112,4 +113,24 @@ export default function MarketDataChart({ marketData }) {
       ))}
     </div>
   )
+}
+
+MarketDataChart.propTypes = {
+  marketData: PropTypes.arrayOf(PropTypes.shape({
+    symbol: PropTypes.string.isRequired,
+    type: PropTypes.string.isRequired,
+    current_price: PropTypes.number.isRequired,
+    price_change_24h: PropTypes.number.isRequired,
+    volume_24h: PropTypes.number.isRequired,
+    historical_data: PropTypes.shape({
+      period: PropTypes.string.isRequired,
+      prices: PropTypes.arrayOf(PropTypes.number),
+      timestamps: PropTypes.arrayOf(PropTypes.number),
+    }),
+    source: PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      url: PropTypes.string.isRequired,
+      fetched_at: PropTypes.string.isRequired,
+    }),
+  })).isRequired,
 }

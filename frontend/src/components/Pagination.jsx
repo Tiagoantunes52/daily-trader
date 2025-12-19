@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import React from 'react'
 import './Pagination.css'
 
@@ -77,4 +78,11 @@ export default function Pagination({ total, skip, limit, onPageChange }) {
       </span>
     </div>
   )
+}
+
+Pagination.propTypes = {
+  total: PropTypes.number.isRequired,
+  skip: PropTypes.number.isRequired,
+  limit: PropTypes.number.isRequired,
+  onPageChange: PropTypes.func.isRequired,
 }
