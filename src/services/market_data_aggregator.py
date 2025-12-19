@@ -23,16 +23,16 @@ class MarketDataAggregator:
     def fetch_crypto_data(self, symbols: list[str]) -> list[MarketData]:
         """
         Fetch cryptocurrency data from available sources.
-        
+
         Args:
             symbols: List of crypto symbols to fetch (e.g., ["bitcoin", "ethereum"])
-            
+
         Returns:
             List of MarketData objects with source attribution
         """
         market_data_list = []
         trace_id = get_current_trace()
-        
+
         for symbol in symbols:
             try:
                 # Log fetch start
@@ -45,7 +45,7 @@ class MarketDataAggregator:
                         "type": "crypto"
                     }
                 )
-                
+
                 # Fetch current data from CoinGecko
                 url = f"{self.coingecko_base_url}/simple/price"
                 params = {
@@ -55,11 +55,11 @@ class MarketDataAggregator:
                     "include_24hr_vol": "true",
                     "include_24hr_change": "true"
                 }
-                
+
                 response = requests.get(url, params=params, timeout=30)
                 response.raise_for_status()
                 data = response.json()
-                
+
                 if symbol.lower() not in data:
                     self.logger.warning(
                         "Cryptocurrency symbol not found in response",
