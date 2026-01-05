@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import CurrentTips from './pages/CurrentTips'
 import TipHistory from './pages/TipHistory'
+import UserSettings from './pages/UserSettings'
 import './App.css'
 
 export default function App() {
@@ -30,6 +31,14 @@ export default function App() {
                 History
               </button>
             </li>
+            <li>
+              <button
+                className={`nav-link ${currentPage === 'settings' ? 'active' : ''}`}
+                onClick={() => setCurrentPage('settings')}
+              >
+                Settings
+              </button>
+            </li>
           </ul>
         </div>
       </nav>
@@ -37,6 +46,7 @@ export default function App() {
       <main className="main-content">
         {currentPage === 'current' && <CurrentTips />}
         {currentPage === 'history' && <TipHistory />}
+        {currentPage === 'settings' && <UserSettings />}
       </main>
 
       <footer className="footer">
