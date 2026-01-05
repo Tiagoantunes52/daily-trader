@@ -16,14 +16,14 @@ jobs:
         if: github.event_name == 'issues'
         uses: actions/add-to-project@v0.5.0
         with:
-          project-url: https://github.com/${{ github.repository }}/projects/daily_trader
+          project-url: github.com/${{ github.repository }}/projects/1
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add PR to project
         if: github.event_name == 'pull_request'
         uses: actions/add-to-project@v0.5.0
         with:
-          project-url: https://github.com/${{ github.repository }}/projects/daily_trader
+          project-url: github.com/${{ github.repository }}/projects/1
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   update-project-status:
