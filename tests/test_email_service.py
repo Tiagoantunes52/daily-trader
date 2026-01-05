@@ -25,34 +25,34 @@ class TestEmailService:
         """Test successful email sending."""
         service = EmailService(db_session=None)
 
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
+        with patch("src.services.email_service.requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_post.return_value = mock_response
 
             result = service.send_email(
                 recipient="test@example.com", subject="Test Subject", content="<p>Test content</p>"
             )
 
             assert result is True
-            mock_server.starttls.assert_called_once()
-            mock_server.login.assert_called_once()
-            mock_server.send_message.assert_called_once()
+            mock_post.assert_called_once()
 
     def test_send_email_with_html_and_text(self):
         """Test that email is sent with both HTML and plain text versions."""
         service = EmailService(db_session=None)
 
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
+        with patch("src.services.email_service.requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_post.return_value = mock_response
 
             result = service.send_email(
                 recipient="test@example.com", subject="Test Subject", content="<p>Test content</p>"
             )
 
             assert result is True
-            # Verify send_message was called
-            mock_server.send_message.assert_called_once()
+            # Verify post was called
+            mock_post.assert_called_once()
 
     @given(st.integers(min_value=1, max_value=3))
     @settings(max_examples=10)
@@ -68,21 +68,22 @@ class TestEmailService:
         """
         service = EmailService(db_session=None)
 
-        # Mock SMTP to fail on specific attempt
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
+        # Mock Mailgun API to fail on specific attempt
+        with patch("src.services.email_service.requests.post") as mock_post:
             # Configure mock to fail on specified attempt, then succeed
             call_count = [0]
 
-            def send_message_side_effect(msg):
+            def post_side_effect(*args, **kwargs):
                 call_count[0] += 1
+                mock_response = MagicMock()
                 if call_count[0] < failure_attempt:
-                    raise Exception("SMTP connection failed")
-                # Success on final attempt
+                    mock_response.status_code = 500
+                    mock_response.text = "Server error"
+                else:
+                    mock_response.status_code = 200
+                return mock_response
 
-            mock_server.send_message.side_effect = send_message_side_effect
+            mock_post.side_effect = post_side_effect
 
             with patch("time.sleep") as mock_sleep:
                 result = service.send_email(
@@ -116,12 +117,12 @@ class TestEmailService:
         """Test that email sending fails after all retry attempts."""
         service = EmailService(db_session=None)
 
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
+        with patch("src.services.email_service.requests.post") as mock_post:
             # Always fail
-            mock_server.send_message.side_effect = Exception("SMTP connection failed")
+            mock_response = MagicMock()
+            mock_response.status_code = 500
+            mock_response.text = "Server error"
+            mock_post.return_value = mock_response
 
             with patch("time.sleep"):
                 result = service.send_email(
@@ -183,14 +184,15 @@ class TestEmailService:
             tips=[tip],
         )
 
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
+        with patch("src.services.email_service.requests.post") as mock_post:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_post.return_value = mock_response
 
             result = service.send_email_content(email_content)
 
             assert result is True
-            mock_server.send_message.assert_called_once()
+            mock_post.assert_called_once()
 
     def test_format_email_html_includes_tips(self):
         """Test that formatted email includes all tips."""

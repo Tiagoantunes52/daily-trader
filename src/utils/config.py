@@ -13,11 +13,14 @@ load_dotenv()
 class EmailConfig:
     """Email service configuration."""
 
-    smtp_server: str
-    smtp_port: int
     sender_email: str
     sender_password: str
+    mailgun_domain: str | None = None
+    mailgun_api_key: str | None = None
+    smtp_server: str | None = None
+    smtp_port: int | None = None
     retry_delays: list[int] = None  # Delays in seconds for exponential backoff
+    use_mailgun: bool = False
 
     def __post_init__(self):
         if self.retry_delays is None:
@@ -55,11 +58,16 @@ class Config:
     """Main application configuration."""
 
     def __init__(self):
+        use_mailgun = os.getenv("USE_MAILGUN", "false").lower() == "true"
+
         self.email = EmailConfig(
-            smtp_server=os.getenv("SMTP_SERVER", "smtp.gmail.com"),
-            smtp_port=int(os.getenv("SMTP_PORT", "587")),
             sender_email=os.getenv("SENDER_EMAIL", ""),
             sender_password=os.getenv("SENDER_PASSWORD", ""),
+            mailgun_domain=os.getenv("MAILGUN_DOMAIN"),
+            mailgun_api_key=os.getenv("MAILGUN_API_KEY"),
+            smtp_server=os.getenv("SMTP_SERVER", "smtp.gmail.com"),
+            smtp_port=int(os.getenv("SMTP_PORT", "587")),
+            use_mailgun=use_mailgun,
         )
 
         self.scheduler = SchedulerConfig(

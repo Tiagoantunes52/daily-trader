@@ -396,19 +396,21 @@ class TestRetryLogic:
         """Test that email retry uses exponential backoff delays."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
+        with patch("src.services.email_service.requests.post") as mock_post:
             # Fail twice, then succeed
             call_count = [0]
 
-            def send_message_side_effect(msg):
+            def post_side_effect(*args, **kwargs):
                 call_count[0] += 1
+                mock_response = MagicMock()
                 if call_count[0] < 3:
-                    raise Exception("SMTP connection failed")
+                    mock_response.status_code = 500
+                    mock_response.text = "Server error"
+                else:
+                    mock_response.status_code = 200
+                return mock_response
 
-            mock_server.send_message.side_effect = send_message_side_effect
+            mock_post.side_effect = post_side_effect
 
             with patch("time.sleep") as mock_sleep:
                 result = email_service.send_email(
@@ -428,12 +430,12 @@ class TestRetryLogic:
         """Test that email fails after maximum retry attempts."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
+        with patch("src.services.email_service.requests.post") as mock_post:
             # Always fail
-            mock_server.send_message.side_effect = Exception("SMTP connection failed")
+            mock_response = MagicMock()
+            mock_response.status_code = 500
+            mock_response.text = "Server error"
+            mock_post.return_value = mock_response
 
             with patch("time.sleep"):
                 result = email_service.send_email(
@@ -447,19 +449,21 @@ class TestRetryLogic:
         """Test that delivery log records all retry attempts."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("smtplib.SMTP") as mock_smtp:
-            mock_server = MagicMock()
-            mock_smtp.return_value.__enter__.return_value = mock_server
-
+        with patch("src.services.email_service.requests.post") as mock_post:
             # Fail once, then succeed
             call_count = [0]
 
-            def send_message_side_effect(msg):
+            def post_side_effect(*args, **kwargs):
                 call_count[0] += 1
+                mock_response = MagicMock()
                 if call_count[0] < 2:
-                    raise Exception("SMTP connection failed")
+                    mock_response.status_code = 500
+                    mock_response.text = "Server error"
+                else:
+                    mock_response.status_code = 200
+                return mock_response
 
-            mock_server.send_message.side_effect = send_message_side_effect
+            mock_post.side_effect = post_side_effect
 
             with patch("time.sleep"):
                 result = email_service.send_email(

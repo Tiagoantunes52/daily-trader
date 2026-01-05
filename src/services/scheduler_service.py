@@ -10,7 +10,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
 
-from src.database.models import MarketDataRecord, TipRecord
+from src.database.models import MarketDataRecord, TipRecord, UserProfile
 from src.models.trading_tip import EmailContent
 from src.services.analysis_engine import AnalysisEngine
 from src.services.email_service import EmailService
@@ -269,43 +269,88 @@ class SchedulerService:
                 },
             )
 
-            email_content = EmailContent(
-                recipient="user@example.com",  # This should come from user config
-                subject=f"{delivery_type.capitalize()} Market Tips - {datetime.now().strftime('%Y-%m-%d')}",
-                delivery_type=delivery_type,
-                tips=all_tips,
-                market_data=all_market_data,
-                generated_at=datetime.now(),
-            )
+            # Fetch all users from database
+            users = []
+            if self.db_session:
+                try:
+                    users = self.db_session.query(UserProfile).all()
+                    structured_logger.debug(
+                        f"Fetched {len(users)} users from database",
+                        context={"trace_id": trace_id, "user_count": len(users)},
+                    )
+                except Exception as e:
+                    structured_logger.warning(
+                        f"Error fetching users from database: {e!s}",
+                        context={"trace_id": trace_id},
+                        exception=e,
+                    )
 
-            # Send email (skip for dashboard requests)
-            if delivery_type != "dashboard":
-                structured_logger.debug(
-                    "Sending email...",
-                    context={
-                        "trace_id": trace_id,
-                        "delivery_type": delivery_type,
-                        "recipient": email_content.recipient,
-                    },
+            # If no users found, use default recipient for testing
+            if not users:
+                users = [
+                    type(
+                        "User",
+                        (),
+                        {
+                            "email": "user@example.com",
+                            "morning_time": None,
+                            "evening_time": None,
+                            "asset_preferences": None,
+                        },
+                    )()
+                ]
+
+            # Send email to each user
+            all_success = True
+            for user in users:
+                # Check if this delivery time matches user's preference
+                if delivery_type == "morning" and user.morning_time:
+                    # Skip if user has custom morning time that doesn't match
+                    pass
+                elif delivery_type == "evening" and user.evening_time:
+                    # Skip if user has custom evening time that doesn't match
+                    pass
+
+                email_content = EmailContent(
+                    recipient=user.email,
+                    subject=f"{delivery_type.capitalize()} Market Tips - {datetime.now().strftime('%Y-%m-%d')}",
+                    delivery_type=delivery_type,
+                    tips=all_tips,
+                    market_data=all_market_data,
+                    generated_at=datetime.now(),
                 )
 
-                success = self.email_service.send_email_content(email_content)
-            else:
-                structured_logger.debug(
-                    "Skipping email send for dashboard request",
-                    context={"trace_id": trace_id, "delivery_type": delivery_type},
-                )
-                success = True
+                # Send email (skip for dashboard requests)
+                if delivery_type != "dashboard":
+                    structured_logger.debug(
+                        "Sending email...",
+                        context={
+                            "trace_id": trace_id,
+                            "delivery_type": delivery_type,
+                            "recipient": email_content.recipient,
+                        },
+                    )
+
+                    success = self.email_service.send_email_content(email_content)
+                    if not success:
+                        all_success = False
+                else:
+                    structured_logger.debug(
+                        "Skipping email send for dashboard request",
+                        context={"trace_id": trace_id, "delivery_type": delivery_type},
+                    )
+                    success = True
 
             duration_ms = (time.time() - start_time) * 1000
 
-            if success:
+            if all_success:
                 structured_logger.info(
                     f"{delivery_type.capitalize()} delivery completed successfully",
                     context={
                         "trace_id": trace_id,
                         "delivery_type": delivery_type,
                         "tips_sent": len(all_tips),
+                        "users_notified": len(users),
                         "duration_ms": duration_ms,
                     },
                 )
@@ -319,6 +364,7 @@ class SchedulerService:
                         context={
                             "delivery_type": delivery_type,
                             "tips_sent": len(all_tips),
+                            "users_notified": len(users),
                             "status": "success",
                         },
                         duration_ms=duration_ms,

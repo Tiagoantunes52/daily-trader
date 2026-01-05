@@ -1,5 +1,6 @@
 """Email service for sending market tips to users."""
 
+import re
 import smtplib
 import time
 import uuid
@@ -7,6 +8,7 @@ from datetime import UTC, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import requests
 from sqlalchemy.orm import Session
 
 from src.database.models import DeliveryLog
@@ -32,17 +34,15 @@ class EmailService:
         self.db_session = db_session
         self.event_store = event_store
         self.logger = StructuredLogger("email_service")
-        self.smtp_server = config.email.smtp_server
-        self.smtp_port = config.email.smtp_port
-        self.sender_email = config.email.sender_email
-        self.sender_password = config.email.sender_password
         self.retry_delays = config.email.retry_delays
+        self.smtp_server = config.email.smtp_server
+        self.sender_email = config.email.sender_email
 
     def send_email(
         self, recipient: str, subject: str, content: str, delivery_type: str = "manual"
     ) -> bool:
         """
-        Send an email with retry logic.
+        Send an email with retry logic using Mailgun or SMTP.
 
         Args:
             recipient: Email address to send to
@@ -53,12 +53,20 @@ class EmailService:
         Returns:
             True if sent successfully, False otherwise
         """
+        if config.email.use_mailgun:
+            return self._send_email_mailgun(recipient, subject, content, delivery_type)
+        else:
+            return self._send_email_smtp(recipient, subject, content, delivery_type)
+
+    def _send_email_mailgun(
+        self, recipient: str, subject: str, content: str, delivery_type: str
+    ) -> bool:
+        """Send email using Mailgun API."""
         trace_id = get_current_trace()
         max_attempts = len(self.retry_delays) + 1
 
-        # Log email send start
         self.logger.info(
-            "Starting email send operation",
+            "Starting Mailgun email send",
             context={
                 "recipient": recipient,
                 "subject": subject,
@@ -67,25 +75,139 @@ class EmailService:
             },
         )
 
-        if self.event_store and trace_id:
-            self.event_store.add_event(
-                trace_id=trace_id,
-                event_type="email_send_start",
-                component="email_service",
-                message=f"Starting email send to {recipient}",
-                context={
-                    "recipient": recipient,
-                    "subject": subject,
-                    "delivery_type": delivery_type,
-                },
+        if not config.email.mailgun_domain or not config.email.mailgun_api_key:
+            self.logger.error(
+                "Mailgun configuration missing",
+                context={"trace_id": trace_id},
             )
+            return False
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = requests.post(
+                    f"https://api.mailgun.net/v3/{config.email.mailgun_domain}/messages",
+                    auth=("api", config.email.mailgun_api_key),
+                    data={
+                        "from": config.email.sender_email,
+                        "to": recipient,
+                        "subject": subject,
+                        "text": self._strip_html(content),
+                        "html": content,
+                    },
+                    timeout=10,
+                )
+
+                if response.status_code == 200:
+                    self.logger.info(
+                        "Email sent successfully via Mailgun",
+                        context={
+                            "recipient": recipient,
+                            "subject": subject,
+                            "delivery_type": delivery_type,
+                            "attempt": attempt,
+                            "trace_id": trace_id,
+                        },
+                    )
+
+                    if self.event_store and trace_id:
+                        self.event_store.add_event(
+                            trace_id=trace_id,
+                            event_type="email_send_complete",
+                            component="email_service",
+                            message=f"Email sent successfully to {recipient}",
+                            context={
+                                "recipient": recipient,
+                                "subject": subject,
+                                "delivery_type": delivery_type,
+                                "status": "success",
+                                "attempt": attempt,
+                            },
+                        )
+
+                    self.log_delivery(
+                        "success", recipient, datetime.now(UTC), delivery_type, attempt
+                    )
+                    return True
+                else:
+                    raise Exception(f"Mailgun API error: {response.status_code} - {response.text}")
+
+            except Exception as e:
+                error_message = str(e)
+
+                if attempt < max_attempts:
+                    delay = self.retry_delays[attempt - 1]
+                    self.logger.warning(
+                        f"Email send failed, retrying in {delay}s",
+                        context={
+                            "recipient": recipient,
+                            "subject": subject,
+                            "delivery_type": delivery_type,
+                            "attempt": attempt,
+                            "error": error_message,
+                            "retry_delay_seconds": delay,
+                            "trace_id": trace_id,
+                        },
+                    )
+
+                    self.log_delivery(
+                        "retrying",
+                        recipient,
+                        datetime.now(UTC),
+                        delivery_type,
+                        attempt,
+                        error_message,
+                    )
+
+                    time.sleep(delay)
+                else:
+                    self.logger.error(
+                        "Email send failed after all retry attempts",
+                        context={
+                            "recipient": recipient,
+                            "subject": subject,
+                            "delivery_type": delivery_type,
+                            "attempts": max_attempts,
+                            "error": error_message,
+                            "trace_id": trace_id,
+                        },
+                        exception=e,
+                    )
+
+                    self.log_delivery(
+                        "failed",
+                        recipient,
+                        datetime.now(UTC),
+                        delivery_type,
+                        attempt,
+                        error_message,
+                    )
+                    return False
+
+        return False
+
+    def _send_email_smtp(
+        self, recipient: str, subject: str, content: str, delivery_type: str
+    ) -> bool:
+        """Send email using SMTP."""
+        trace_id = get_current_trace()
+        max_attempts = len(self.retry_delays) + 1
+
+        self.logger.info(
+            "Starting SMTP email send",
+            context={
+                "recipient": recipient,
+                "subject": subject,
+                "delivery_type": delivery_type,
+                "trace_id": trace_id,
+            },
+        )
 
         for attempt in range(1, max_attempts + 1):
             try:
                 # Create message
                 message = MIMEMultipart("alternative")
                 message["Subject"] = subject
-                message["From"] = self.sender_email
+                message["From"] = config.email.sender_email
                 message["To"] = recipient
 
                 # Attach plain text and HTML versions
@@ -95,14 +217,14 @@ class EmailService:
                 message.attach(html_part)
 
                 # Send email
-                with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                with smtplib.SMTP(config.email.smtp_server, config.email.smtp_port) as server:
                     server.starttls()
-                    server.login(self.sender_email, self.sender_password)
+                    server.login(config.email.sender_email, config.email.sender_password)
                     server.send_message(message)
 
                 # Log successful delivery
                 self.logger.info(
-                    "Email sent successfully",
+                    "Email sent successfully via SMTP",
                     context={
                         "recipient": recipient,
                         "subject": subject,
@@ -386,7 +508,6 @@ class EmailService:
 
     def _strip_html(self, html: str) -> str:
         """Strip HTML tags for plain text version."""
-        import re
 
         # Remove HTML tags
         text = re.sub("<[^<]+?>", "", html)
