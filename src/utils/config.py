@@ -47,6 +47,16 @@ class APIConfig:
 
 
 @dataclass
+class JWTConfig:
+    """JWT configuration."""
+
+    secret_key: str
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
+
+
+@dataclass
 class DatabaseConfig:
     """Database configuration."""
 
@@ -85,6 +95,13 @@ class Config:
         self.database = DatabaseConfig(
             database_url=os.getenv("DATABASE_URL", "sqlite:///./market_tips.db"),
             echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
+        )
+
+        self.jwt = JWTConfig(
+            secret_key=os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production"),
+            algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
+            access_token_expire_minutes=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "15")),
+            refresh_token_expire_days=int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7")),
         )
 
     def validate(self) -> bool:
