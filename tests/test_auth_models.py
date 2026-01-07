@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 
 from src.database.models import Base, OAuthConnection, User
@@ -22,8 +23,8 @@ def test_db():
     """Create an in-memory SQLite database for testing."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(bind=engine)
-    SessionLocal = sessionmaker(bind=engine)
-    db = SessionLocal()
+    session_local = sessionmaker(bind=engine)
+    db = session_local()
     yield db
     db.close()
 
@@ -64,7 +65,7 @@ class TestUserModel:
         test_db.commit()
 
         test_db.add(user2)
-        with pytest.raises(Exception):  # IntegrityError
+        with pytest.raises(IntegrityError):
             test_db.commit()
 
     def test_user_timestamps(self, test_db):
@@ -202,7 +203,7 @@ class TestAuthSchemas:
 
     def test_user_register_request_invalid_email(self):
         """Test registration with invalid email."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="is not a valid email"):
             UserRegisterRequest(
                 email="invalid-email",
                 password="SecurePassword123",
@@ -211,7 +212,7 @@ class TestAuthSchemas:
 
     def test_user_register_request_short_password(self):
         """Test registration with short password."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="at least 8 characters"):
             UserRegisterRequest(
                 email="test@example.com",
                 password="short",
@@ -220,7 +221,7 @@ class TestAuthSchemas:
 
     def test_user_register_request_empty_name(self):
         """Test registration with empty name."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="name"):
             UserRegisterRequest(
                 email="test@example.com",
                 password="SecurePassword123",
@@ -288,7 +289,7 @@ class TestAuthSchemas:
 
     def test_password_change_request_short_new_password(self):
         """Test password change with short new password."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="at least 8 characters"):
             PasswordChangeRequest(
                 current_password="OldPassword123",
                 new_password="short",

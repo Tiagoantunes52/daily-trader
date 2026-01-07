@@ -178,7 +178,7 @@ class TestPasswordServiceUnit:
         special_chars = "!@#$%^&*"
         for char in special_chars:
             password = f"SecurePassword123{char}"
-            is_valid, errors = PasswordService.validate_password_strength(password)
+            is_valid, _ = PasswordService.validate_password_strength(password)
             assert is_valid is True, f"Special character '{char}' should be accepted"
 
     def test_validate_password_strength_edge_case_exactly_8_chars(self):
