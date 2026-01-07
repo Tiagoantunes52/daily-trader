@@ -12,14 +12,14 @@ jobs:
     steps:
       - name: Add issue to project
         if: github.event_name == 'issues'
-        uses: actions/add-to-project@v0.5.0
+        uses: actions/add-to-project@v1.0.2
         with:
           project-url: https://github.com/users/Tiagoantunes52/projects/1
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add PR to project
         if: github.event_name == 'pull_request'
-        uses: actions/add-to-project@v0.5.0
+        uses: actions/add-to-project@v1.0.2
         with:
           project-url: https://github.com/users/Tiagoantunes52/projects/1
           github-token: ${{ secrets.GITHUB_TOKEN }}
