@@ -248,6 +248,7 @@ dev = [
     { name = "pbr" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-timeout" },
     { name = "ruff" },
 ]
 
@@ -259,6 +260,7 @@ dev = [
     { name = "pbr" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pytest-timeout" },
     { name = "ruff" },
 ]
 
@@ -275,6 +277,7 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.5.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = "==7.4.3" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==4.1.0" },
+    { name = "pytest-timeout", marker = "extra == 'dev'", specifier = "==2.1.0" },
     { name = "python-dotenv", specifier = "==1.0.0" },
     { name = "requests", specifier = "==2.31.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.1.8" },
@@ -291,6 +294,7 @@ dev = [
     { name = "pbr", specifier = "==7.0.3" },
     { name = "pytest", specifier = "==7.4.3" },
     { name = "pytest-cov", specifier = "==4.1.0" },
+    { name = "pytest-timeout", specifier = "==2.1.0" },
     { name = "ruff", specifier = "==0.1.8" },
 ]
 
@@ -614,6 +618,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7a/15/da3df99fd551507694a9b01f512a2f6cf1254f33601605843c3775f39460/pytest-cov-4.1.0.tar.gz", hash = "sha256:3904b13dfbfec47f003b8e77fd5b589cd11904a21ddf1ab38a64f204d6a10ef6", size = 63245, upload-time = "2023-05-24T18:44:56.845Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/4b/8b78d126e275efa2379b1c2e09dc52cf70df16fc3b90613ef82531499d73/pytest_cov-4.1.0-py3-none-any.whl", hash = "sha256:6ba70b9e97e69fcc3fb45bfeab2d0a138fb65c4d0d6a41ef33983ad114be8c3a", size = 21949, upload-time = "2023-05-24T18:44:54.079Z" },
+]
+
+[[package]]
+name = "pytest-timeout"
+version = "2.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ef/30/37abbd50f86cb802cbcea50d68688438de1a7446d73c8ed8d048173b4b13/pytest-timeout-2.1.0.tar.gz", hash = "sha256:c07ca07404c612f8abbe22294b23c368e2e5104b521c1790195561f37e1ac3d9", size = 18386, upload-time = "2022-01-18T21:35:24.147Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/23/02/c85ca1e18e0c00d5ee45f4012f241098c8995294e1178367cb638a26b6c8/pytest_timeout-2.1.0-py3-none-any.whl", hash = "sha256:f6f50101443ce70ad325ceb4473c4255e9d74e3c7cd0ef827309dfa4c0d975c6", size = 12701, upload-time = "2022-01-18T21:35:22.087Z" },
 ]
 
 [[package]]

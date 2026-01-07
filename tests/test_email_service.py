@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
@@ -54,6 +55,7 @@ class TestEmailService:
             # Verify post was called
             mock_post.assert_called_once()
 
+    @pytest.mark.timeout(10)
     @given(st.integers(min_value=1, max_value=3))
     @settings(max_examples=10)
     def test_email_retry_logic(self, failure_attempt):
