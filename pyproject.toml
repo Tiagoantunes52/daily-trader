@@ -42,7 +42,7 @@ dev = [
     "hypothesis==6.88.0",
     "pytest-cov==4.1.0",
     "pytest-timeout==2.1.0",
-    "ruff==0.1.8",
+    "ruff==0.14.10",
     "mypy==1.7.1",
     "bandit==1.7.5",
     "pbr==7.0.3"
@@ -66,11 +66,11 @@ addopts = "-v --tb=short"
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PIE", "PT", "RUF"]
-ignore = ["E501", "A003", "PT001"]
+lint.select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PIE", "PT", "RUF"]
+lint.ignore = ["E501", "A003", "PT001"]
 exclude = [".venv", "venv", "__pycache__", ".git"]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "src/api/*.py" = ["B008"]
 
@@ -88,7 +88,7 @@ dev = [
     "hypothesis==6.88.0",
     "pytest-cov==4.1.0",
     "pytest-timeout==2.1.0",
-    "ruff==0.1.8",
+    "ruff==0.14.10",
     "mypy==1.7.1",
     "bandit==1.7.5",
     "pbr==7.0.3"

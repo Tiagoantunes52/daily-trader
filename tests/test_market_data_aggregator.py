@@ -107,13 +107,13 @@ class TestMarketDataAggregator:
         """
         # Property: All market data must include historical data
         assert market_data.historical_data is not None, "Market data must have historical data"
-        assert isinstance(
-            market_data.historical_data, HistoricalData
-        ), "Historical data must be a HistoricalData object"
+        assert isinstance(market_data.historical_data, HistoricalData), (
+            "Historical data must be a HistoricalData object"
+        )
         assert market_data.historical_data.period in ["24h", "7d", "30d"], "Period must be valid"
-        assert (
-            len(market_data.historical_data.prices) > 0
-        ), "Historical data must contain at least one price"
+        assert len(market_data.historical_data.prices) > 0, (
+            "Historical data must contain at least one price"
+        )
         assert len(market_data.historical_data.timestamps) == len(
             market_data.historical_data.prices
         ), "Timestamps and prices must have the same length"
@@ -193,9 +193,9 @@ class TestMarketDataAggregator:
                 completion_logs = [
                     e for e in logged_entries if "Successfully fetched" in e.get("message", "")
                 ]
-                assert (
-                    len(completion_logs) > 0
-                ), "At least one successful fetch log should be created"
+                assert len(completion_logs) > 0, (
+                    "At least one successful fetch log should be created"
+                )
 
                 for entry in completion_logs:
                     context = entry.get("context", {})
