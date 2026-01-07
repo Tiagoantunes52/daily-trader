@@ -41,9 +41,11 @@ dev = [
     "pytest==7.4.3",
     "hypothesis==6.88.0",
     "pytest-cov==4.1.0",
+    "pytest-timeout==2.1.0",
     "ruff==0.1.8",
     "mypy==1.7.1",
     "bandit==1.7.5",
+    "pbr==7.0.3"
 ]
 
 [project.urls]
@@ -65,11 +67,12 @@ addopts = "-v --tb=short"
 line-length = 100
 target-version = "py312"
 select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PIE", "PT", "RUF"]
-ignore = ["E501"]
+ignore = ["E501", "A003", "PT001"]
 exclude = [".venv", "venv", "__pycache__", ".git"]
 
 [tool.ruff.per-file-ignores]
 "__init__.py" = ["F401"]
+"src/api/*.py" = ["B008"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -79,12 +82,14 @@ disallow_untyped_defs = false
 ignore_missing_imports = true
 exclude = [".venv", "venv", "__pycache__"]
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "pytest==7.4.3",
     "hypothesis==6.88.0",
     "pytest-cov==4.1.0",
+    "pytest-timeout==2.1.0",
     "ruff==0.1.8",
     "mypy==1.7.1",
     "bandit==1.7.5",
+    "pbr==7.0.3"
 ]

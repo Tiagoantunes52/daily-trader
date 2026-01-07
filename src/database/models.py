@@ -1,15 +1,16 @@
 """SQLAlchemy database models for persistent storage."""
 
-from sqlalchemy import Column, String, Float, Integer, DateTime, Text, Enum
+from datetime import UTC, datetime
+
+from sqlalchemy import Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import declarative_base
-from datetime import datetime, timezone
-import enum
 
 Base = declarative_base()
 
 
 class TipRecord(Base):
     """Database model for storing trading tips."""
+
     __tablename__ = "tips"
 
     id = Column(String, primary_key=True)
@@ -20,12 +21,13 @@ class TipRecord(Base):
     confidence = Column(Integer, nullable=False)
     indicators = Column(String, nullable=True)  # JSON string
     sources = Column(String, nullable=True)  # JSON string
-    generated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    generated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     delivery_type = Column(String, nullable=False)  # "morning" or "evening"
 
 
 class MarketDataRecord(Base):
     """Database model for storing market data."""
+
     __tablename__ = "market_data"
 
     id = Column(String, primary_key=True)
@@ -37,11 +39,12 @@ class MarketDataRecord(Base):
     historical_data = Column(String, nullable=True)  # JSON string
     source_name = Column(String, nullable=False)
     source_url = Column(String, nullable=False)
-    fetched_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    fetched_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 
 class DeliveryLog(Base):
     """Database model for tracking email delivery attempts."""
+
     __tablename__ = "delivery_logs"
 
     id = Column(String, primary_key=True)
@@ -50,11 +53,12 @@ class DeliveryLog(Base):
     delivery_type = Column(String, nullable=False)  # "morning" or "evening"
     attempt_number = Column(Integer, nullable=False, default=1)
     error_message = Column(Text, nullable=True)
-    attempted_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    attempted_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 
 class UserProfile(Base):
     """Database model for user configuration."""
+
     __tablename__ = "user_profiles"
 
     id = Column(String, primary_key=True)
@@ -62,5 +66,10 @@ class UserProfile(Base):
     morning_time = Column(String, nullable=True)  # HH:MM format
     evening_time = Column(String, nullable=True)  # HH:MM format
     asset_preferences = Column(String, nullable=True)  # JSON string
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )

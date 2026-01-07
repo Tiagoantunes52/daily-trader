@@ -1,9 +1,11 @@
 """Property-based tests for in-memory event store."""
 
-from hypothesis import given, strategies as st
-from datetime import datetime, timezone, timedelta
 import uuid
-from src.utils.event_store import EventStore, Event
+
+from hypothesis import given
+from hypothesis import strategies as st
+
+from src.utils.event_store import EventStore
 
 
 class TestEventStoreOrdering:
@@ -138,7 +140,7 @@ class TestEventStoreOrdering:
         trace_id = str(uuid.uuid4())
 
         # Add events of different types
-        type_counts = {et: 0 for et in event_types}
+        type_counts = dict.fromkeys(event_types, 0)
         for i in range(num_events):
             event_type = event_types[i % len(event_types)]
             store.add_event(

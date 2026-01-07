@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { getTipHistory } from '../api/client'
 import TipCard from '../components/TipCard'
 import FilterBar from '../components/FilterBar'
@@ -21,7 +21,7 @@ export default function TipHistory() {
     total: 0
   })
 
-  const fetchHistory = async (filterParams = {}) => {
+  const fetchHistory = useCallback(async (filterParams = {}) => {
     setLoading(true)
     setError(null)
     try {
@@ -44,11 +44,11 @@ export default function TipHistory() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filters, pagination.skip, pagination.limit])
 
   useEffect(() => {
     fetchHistory()
-  }, [])
+  }, [fetchHistory])
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters)

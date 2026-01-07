@@ -1,13 +1,14 @@
 """Trading tip models for recommendations and analysis."""
 
 from dataclasses import dataclass, field
-from typing import Literal
 from datetime import datetime
+from typing import Literal
 
 
 @dataclass
 class TipSource:
     """Source information for a trading tip."""
+
     name: str
     url: str
 
@@ -15,6 +16,7 @@ class TipSource:
 @dataclass
 class TradingTip:
     """A trading recommendation based on market analysis."""
+
     symbol: str
     type: Literal["crypto", "stock"]
     recommendation: Literal["BUY", "SELL", "HOLD"]
@@ -28,6 +30,7 @@ class TradingTip:
 @dataclass
 class EmailContent:
     """Email content combining tips and market data."""
+
     recipient: str
     subject: str
     delivery_type: Literal["morning", "evening"]
@@ -39,6 +42,7 @@ class EmailContent:
 @dataclass
 class DashboardTip:
     """Tip data formatted for dashboard display."""
+
     id: str
     symbol: str
     type: Literal["crypto", "stock"]

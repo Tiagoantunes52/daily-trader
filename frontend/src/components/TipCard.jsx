@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import React from 'react'
 import './TipCard.css'
 
@@ -80,4 +81,22 @@ export default function TipCard({ tip }) {
       </div>
     </div>
   )
+}
+
+TipCard.propTypes = {
+  tip: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    symbol: PropTypes.string.isRequired,
+    type: PropTypes.string.isRequired,
+    recommendation: PropTypes.string.isRequired,
+    reasoning: PropTypes.string.isRequired,
+    confidence: PropTypes.number.isRequired,
+    indicators: PropTypes.arrayOf(PropTypes.string),
+    sources: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      url: PropTypes.string.isRequired,
+    })),
+    generated_at: PropTypes.string.isRequired,
+    delivery_type: PropTypes.string.isRequired,
+  }).isRequired,
 }

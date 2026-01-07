@@ -1,9 +1,10 @@
 """Property-based tests for debug API endpoints."""
 
-import json
 import uuid
-from hypothesis import given, strategies as st
-from datetime import datetime, timezone
+
+from hypothesis import given
+from hypothesis import strategies as st
+
 from src.utils.event_store import EventStore
 
 
@@ -33,15 +34,15 @@ class TestDebugStatusEndpoint:
                 message=f"Delivery {i} started",
                 context={
                     "delivery_type": "morning" if i % 2 == 0 else "evening",
-                    "next_delivery_time": f"2024-01-{(i % 28) + 1:02d}T08:00:00Z"
-                }
+                    "next_delivery_time": f"2024-01-{(i % 28) + 1:02d}T08:00:00Z",
+                },
             )
 
         # Simulate status endpoint logic
         recent_events = store.get_recent_events(limit=100)
         delivery_events = [e for e in recent_events if "delivery" in e.event_type]
         is_running = len(delivery_events) > 0
-        
+
         next_deliveries = []
         for event in delivery_events[-2:]:
             if event.context and "next_delivery_time" in event.context:
@@ -49,7 +50,7 @@ class TestDebugStatusEndpoint:
 
         # Verify response structure
         assert isinstance(is_running, bool)
-        assert is_running == True  # Should be running since we added delivery events
+        assert is_running  # Should be running since we added delivery events
         assert isinstance(next_deliveries, list)
         assert len(next_deliveries) <= 2
         assert store.size() == num_events
@@ -75,7 +76,7 @@ class TestExecutionHistoryEndpoint:
         for i in range(num_deliveries):
             trace_id = str(uuid.uuid4())
             delivery_id = str(uuid.uuid4())
-            
+
             store.add_event(
                 trace_id=trace_id,
                 event_type="delivery_start",
@@ -83,10 +84,10 @@ class TestExecutionHistoryEndpoint:
                 message=f"Delivery {i} started",
                 context={
                     "delivery_id": delivery_id,
-                    "delivery_type": "morning" if i % 2 == 0 else "evening"
-                }
+                    "delivery_type": "morning" if i % 2 == 0 else "evening",
+                },
             )
-            
+
             store.add_event(
                 trace_id=trace_id,
                 event_type="delivery_complete",
@@ -95,8 +96,8 @@ class TestExecutionHistoryEndpoint:
                 context={
                     "delivery_id": delivery_id,
                     "delivery_type": "morning" if i % 2 == 0 else "evening",
-                    "status": "success"
-                }
+                    "status": "success",
+                },
             )
 
         # Simulate execution history endpoint logic
@@ -106,16 +107,20 @@ class TestExecutionHistoryEndpoint:
 
         execution_history = []
         for event in delivery_events[-50:]:
-            execution_history.append({
-                "delivery_id": event.context.get("delivery_id", event.id),
-                "trace_id": event.trace_id,
-                "delivery_type": event.context.get("delivery_type", "unknown"),
-                "timestamp": event.timestamp,
-                "event_type": event.event_type,
-                "status": "in_progress" if event.event_type == "delivery_start" else "completed",
-                "message": event.message,
-                "context": event.context
-            })
+            execution_history.append(
+                {
+                    "delivery_id": event.context.get("delivery_id", event.id),
+                    "trace_id": event.trace_id,
+                    "delivery_type": event.context.get("delivery_type", "unknown"),
+                    "timestamp": event.timestamp,
+                    "event_type": event.event_type,
+                    "status": "in_progress"
+                    if event.event_type == "delivery_start"
+                    else "completed",
+                    "message": event.message,
+                    "context": event.context,
+                }
+            )
 
         # Verify all entries have required fields
         for entry in execution_history:
@@ -136,7 +141,7 @@ class TestFetchHistoryEndpoint:
             st.sampled_from(["crypto_api", "stock_api", "market_data_service"]),
             min_size=1,
             max_size=3,
-            unique=True
+            unique=True,
         ),
     )
     def test_fetch_history_includes_required_fields(self, num_fetches, sources):
@@ -154,7 +159,7 @@ class TestFetchHistoryEndpoint:
             trace_id = str(uuid.uuid4())
             fetch_id = str(uuid.uuid4())
             source = sources[i % len(sources)]
-            
+
             store.add_event(
                 trace_id=trace_id,
                 event_type="fetch_start",
@@ -163,10 +168,10 @@ class TestFetchHistoryEndpoint:
                 context={
                     "fetch_id": fetch_id,
                     "source": source,
-                    "symbols": ["BTC", "ETH"] if source == "crypto_api" else ["AAPL", "GOOGL"]
-                }
+                    "symbols": ["BTC", "ETH"] if source == "crypto_api" else ["AAPL", "GOOGL"],
+                },
             )
-            
+
             store.add_event(
                 trace_id=trace_id,
                 event_type="fetch_complete",
@@ -177,8 +182,8 @@ class TestFetchHistoryEndpoint:
                     "source": source,
                     "symbols": ["BTC", "ETH"] if source == "crypto_api" else ["AAPL", "GOOGL"],
                     "status": "success",
-                    "records_fetched": 2
-                }
+                    "records_fetched": 2,
+                },
             )
 
         # Simulate fetch history endpoint logic
@@ -188,17 +193,19 @@ class TestFetchHistoryEndpoint:
 
         fetch_history = []
         for event in fetch_events[-50:]:
-            fetch_history.append({
-                "fetch_id": event.context.get("fetch_id", event.id),
-                "trace_id": event.trace_id,
-                "source": event.context.get("source", "unknown"),
-                "symbols": event.context.get("symbols", []),
-                "timestamp": event.timestamp,
-                "event_type": event.event_type,
-                "status": "in_progress" if event.event_type == "fetch_start" else "completed",
-                "records_fetched": event.context.get("records_fetched", 0),
-                "message": event.message
-            })
+            fetch_history.append(
+                {
+                    "fetch_id": event.context.get("fetch_id", event.id),
+                    "trace_id": event.trace_id,
+                    "source": event.context.get("source", "unknown"),
+                    "symbols": event.context.get("symbols", []),
+                    "timestamp": event.timestamp,
+                    "event_type": event.event_type,
+                    "status": "in_progress" if event.event_type == "fetch_start" else "completed",
+                    "records_fetched": event.context.get("records_fetched", 0),
+                    "message": event.message,
+                }
+            )
 
         # Verify all entries have required fields
         for entry in fetch_history:
@@ -230,7 +237,7 @@ class TestErrorLogEndpoint:
         # Add error events
         for i in range(num_errors):
             trace_id = str(uuid.uuid4())
-            
+
             store.add_event(
                 trace_id=trace_id,
                 event_type="error",
@@ -239,8 +246,8 @@ class TestErrorLogEndpoint:
                 context={
                     "error_type": "ValueError",
                     "error_message": f"Invalid value at step {i}",
-                    "operation": "delivery"
-                }
+                    "operation": "delivery",
+                },
             )
 
         # Simulate error log endpoint logic
@@ -248,14 +255,16 @@ class TestErrorLogEndpoint:
 
         error_log = []
         for event in error_events:
-            error_log.append({
-                "error_id": event.id,
-                "trace_id": event.trace_id,
-                "timestamp": event.timestamp,
-                "component": event.component,
-                "message": event.message,
-                "context": event.context
-            })
+            error_log.append(
+                {
+                    "error_id": event.id,
+                    "trace_id": event.trace_id,
+                    "timestamp": event.timestamp,
+                    "component": event.component,
+                    "message": event.message,
+                    "context": event.context,
+                }
+            )
 
         # Verify all entries have required fields
         assert len(error_log) == num_errors
@@ -298,11 +307,8 @@ class TestMetricsEndpoint:
                 event_type="delivery_complete",
                 component="scheduler",
                 message=f"Delivery {i} completed successfully",
-                context={
-                    "status": "success",
-                    "tips_generated": 5
-                },
-                duration_ms=1000.0
+                context={"status": "success", "tips_generated": 5},
+                duration_ms=1000.0,
             )
 
         # Add failed delivery events
@@ -312,27 +318,32 @@ class TestMetricsEndpoint:
                 event_type="delivery_complete",
                 component="scheduler",
                 message=f"Delivery {num_successful + i} failed",
-                context={
-                    "status": "failed",
-                    "tips_generated": 0
-                },
-                duration_ms=500.0
+                context={"status": "failed", "tips_generated": 0},
+                duration_ms=500.0,
             )
 
         # Simulate metrics calculation
         all_events = store.get_all_events()
-        
+
         total_deliveries = len([e for e in all_events if e.event_type == "delivery_complete"])
-        successful_deliveries = len([e for e in all_events if e.event_type == "delivery_complete" and e.context.get("status") == "success"])
+        successful_deliveries = len(
+            [
+                e
+                for e in all_events
+                if e.event_type == "delivery_complete" and e.context.get("status") == "success"
+            ]
+        )
         failed_deliveries = total_deliveries - successful_deliveries
-        
-        calculated_success_rate = (successful_deliveries / total_deliveries * 100) if total_deliveries > 0 else 0
+
+        calculated_success_rate = (
+            (successful_deliveries / total_deliveries * 100) if total_deliveries > 0 else 0
+        )
 
         # Verify metrics accuracy
         assert total_deliveries == num_deliveries
         assert successful_deliveries == num_successful
         assert failed_deliveries == num_failed
-        
+
         # Verify success rate calculation
         expected_rate = (num_successful / num_deliveries * 100) if num_deliveries > 0 else 0
         assert abs(calculated_success_rate - expected_rate) < 0.01
@@ -359,10 +370,14 @@ class TestTraceEndpoint:
         for i in range(num_events):
             store.add_event(
                 trace_id=trace_id,
-                event_type="delivery_start" if i == 0 else "delivery_complete" if i == num_events - 1 else "fetch_complete",
+                event_type="delivery_start"
+                if i == 0
+                else "delivery_complete"
+                if i == num_events - 1
+                else "fetch_complete",
                 component="scheduler",
                 message=f"Event {i}",
-                context={"step": i}
+                context={"step": i},
             )
 
         # Simulate trace endpoint logic
@@ -370,23 +385,25 @@ class TestTraceEndpoint:
 
         trace_data = []
         for event in trace_events:
-            trace_data.append({
-                "event_id": event.id,
-                "timestamp": event.timestamp,
-                "event_type": event.event_type,
-                "component": event.component,
-                "message": event.message,
-                "context": event.context,
-                "duration_ms": event.duration_ms
-            })
+            trace_data.append(
+                {
+                    "event_id": event.id,
+                    "timestamp": event.timestamp,
+                    "event_type": event.event_type,
+                    "component": event.component,
+                    "message": event.message,
+                    "context": event.context,
+                    "duration_ms": event.duration_ms,
+                }
+            )
 
         # Verify trace completeness
         assert len(trace_data) == num_events
-        
+
         # Verify chronological order
         timestamps = [event["timestamp"] for event in trace_data]
         assert timestamps == sorted(timestamps)
-        
+
         # Verify all events belong to the trace
         for event in trace_data:
             assert event["event_id"] is not None

@@ -46,3 +46,29 @@ export const generateTips = async () => {
 }
 
 export default client
+
+// User Management Endpoints
+export const createUser = async (userData) => {
+  const response = await client.post('/users', userData)
+  return response.data
+}
+
+export const getUser = async (userId) => {
+  const response = await client.get(`/users/${userId}`)
+  return response.data
+}
+
+export const getUserByEmail = async (email) => {
+  const response = await client.get(`/users/email/${email}`)
+  return response.data
+}
+
+export const updateUser = async (userId, userData) => {
+  const response = await client.put(`/users/${userId}`, userData)
+  return response.data
+}
+
+export const deleteUser = async (userId) => {
+  const response = await client.delete(`/users/${userId}`)
+  return response.data
+}

@@ -5,8 +5,6 @@ on:
     types: [opened, reopened]
   pull_request:
     types: [opened, reopened, ready_for_review]
-  pull_request_review:
-    types: [submitted]
 
 jobs:
   add-to-project:
@@ -16,20 +14,32 @@ jobs:
         if: github.event_name == 'issues'
         uses: actions/add-to-project@v0.5.0
         with:
-          project-url: https://github.com/${{ github.repository }}/projects/1
+          project-url: https://github.com/users/Tiagoantunes52/projects/1
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add PR to project
         if: github.event_name == 'pull_request'
         uses: actions/add-to-project@v0.5.0
         with:
-          project-url: https://github.com/${{ github.repository }}/projects/1
+          project-url: https://github.com/users/Tiagoantunes52/projects/1
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   update-project-status:
     runs-on: ubuntu-latest
     steps:
-      - name: Update PR status to "In Review"
+      - name: Comment on new issue
+        if: github.event_name == 'issues' && github.event.action == 'opened'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '📋 Issue created and added to project board'
+            })
+
+      - name: Comment on new PR
         if: github.event_name == 'pull_request' && github.event.action == 'opened'
         uses: actions/github-script@v7
         with:
@@ -41,7 +51,7 @@ jobs:
               body: '🚀 PR opened and added to project board'
             })
 
-      - name: Update PR status when ready for review
+      - name: Comment when PR ready for review
         if: github.event_name == 'pull_request' && github.event.action == 'ready_for_review'
         uses: actions/github-script@v7
         with:
@@ -52,20 +62,3 @@ jobs:
               repo: context.repo.repo,
               body: '✅ PR ready for review'
             })
-
-  # close-stale-issues:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Close stale issues
-  #       uses: actions/stale@v8
-  #       with:
-  #         days-before-issue-stale: 30
-  #         days-before-issue-close: 7
-  #         days-before-pr-stale: 14
-  #         days-before-pr-close: 3
-  #         stale-issue-message: "This issue is stale because it has been open for 30 days with no activity."
-  #         stale-pr-message: "This PR is stale because it has been open for 14 days with no activity."
-  #         close-issue-message: "Closing due to inactivity."
-  #         close-pr-message: "Closing due to inactivity."
-  #         exempt-issue-labels: "pinned,security"
-  #         exempt-pr-labels: "pinned,security"

@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import React from 'react'
 import './FilterBar.css'
 
@@ -84,4 +85,15 @@ export default function FilterBar({ filters, onFilterChange, onSearch }) {
       </form>
     </div>
   )
+}
+
+FilterBar.propTypes = {
+  filters: PropTypes.shape({
+    assetType: PropTypes.string,
+    days: PropTypes.number,
+    startDate: PropTypes.string,
+    endDate: PropTypes.string,
+  }).isRequired,
+  onFilterChange: PropTypes.func.isRequired,
+  onSearch: PropTypes.func.isRequired,
 }

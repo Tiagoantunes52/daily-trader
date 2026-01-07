@@ -1,8 +1,9 @@
 """Metrics calculator for aggregating event store data."""
 
-from typing import Dict, Any, Optional
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
 from src.utils.event_store import EventStore
 
 
@@ -24,7 +25,7 @@ class Metrics:
     recent_errors_count: int
     uptime_seconds: int
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert metrics to dictionary."""
         return {
             "total_deliveries": self.total_deliveries,
@@ -46,7 +47,7 @@ class Metrics:
 class MetricsCalculator:
     """Calculates metrics from event store data."""
 
-    def __init__(self, event_store: EventStore, start_time: Optional[datetime] = None):
+    def __init__(self, event_store: EventStore, start_time: datetime | None = None):
         """
         Initialize the metrics calculator.
 
@@ -55,7 +56,7 @@ class MetricsCalculator:
             start_time: Optional start time for uptime calculation (defaults to now)
         """
         self.event_store = event_store
-        self.start_time = start_time or datetime.now(timezone.utc)
+        self.start_time = start_time or datetime.now(UTC)
 
     def calculate(self) -> Metrics:
         """
@@ -79,9 +80,7 @@ class MetricsCalculator:
 
         # Calculate success rate
         success_rate = (
-            (successful_deliveries / total_deliveries * 100)
-            if total_deliveries > 0
-            else 0.0
+            (successful_deliveries / total_deliveries * 100) if total_deliveries > 0 else 0.0
         )
 
         # Calculate average delivery duration
@@ -89,18 +88,12 @@ class MetricsCalculator:
             e.duration_ms for e in delivery_completes if e.duration_ms is not None
         ]
         average_delivery_duration_ms = (
-            sum(delivery_durations) / len(delivery_durations)
-            if delivery_durations
-            else 0.0
+            sum(delivery_durations) / len(delivery_durations) if delivery_durations else 0.0
         )
 
         # Calculate tips and emails
-        total_tips_generated = sum(
-            e.context.get("tips_generated", 0) for e in delivery_completes
-        )
-        total_emails_sent = sum(
-            e.context.get("recipients_sent", 0) for e in delivery_completes
-        )
+        total_tips_generated = sum(e.context.get("tips_generated", 0) for e in delivery_completes)
+        total_emails_sent = sum(e.context.get("recipients_sent", 0) for e in delivery_completes)
 
         # Calculate fetch metrics
         fetch_completes = [e for e in events if e.event_type == "fetch_complete"]
@@ -108,14 +101,10 @@ class MetricsCalculator:
         successful_fetches = len(
             [e for e in fetch_completes if e.context.get("status") == "success"]
         )
-        failed_fetches = len(
-            [e for e in fetch_completes if e.context.get("status") == "failed"]
-        )
+        failed_fetches = len([e for e in fetch_completes if e.context.get("status") == "failed"])
 
         # Calculate average fetch duration
-        fetch_durations = [
-            e.duration_ms for e in fetch_completes if e.duration_ms is not None
-        ]
+        fetch_durations = [e.duration_ms for e in fetch_completes if e.duration_ms is not None]
         average_fetch_duration_ms = (
             sum(fetch_durations) / len(fetch_durations) if fetch_durations else 0.0
         )
@@ -125,7 +114,7 @@ class MetricsCalculator:
         recent_errors_count = len(error_events)
 
         # Calculate uptime
-        current_time = datetime.now(timezone.utc)
+        current_time = datetime.now(UTC)
         uptime_seconds = int((current_time - self.start_time).total_seconds())
 
         return Metrics(
