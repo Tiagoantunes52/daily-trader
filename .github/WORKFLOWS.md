@@ -224,7 +224,7 @@ chmod +x .git/hooks/pre-commit
 
 ## Security
 
-- Workflows use `actions/checkout@v4` (latest stable)
+- Workflows use `actions/checkout@v6` (latest stable)
 - GitHub token is automatically provided and scoped
 - No secrets are logged in workflow output
 - Bandit scans for security issues in code
