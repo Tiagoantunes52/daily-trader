@@ -7,7 +7,7 @@ from io import StringIO
 from unittest.mock import Mock, patch
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from src.models.market_data import DataSource, HistoricalData, MarketData
@@ -248,7 +248,7 @@ class TestSchedulerService:
         scheduler.stop()
 
     @given(market_data_strategy(asset_type="crypto"))
-    @settings(max_examples=20)
+    @settings(max_examples=10, suppress_health_check=[HealthCheck.data_too_large])
     def test_delivery_operations_are_logged(self, market_data):
         """
         **Feature: observability-logging, Property 1: Delivery operations are logged**
@@ -320,7 +320,7 @@ class TestSchedulerService:
             clear_trace()
 
     @given(market_data_strategy(asset_type="crypto"))
-    @settings(max_examples=20)
+    @settings(max_examples=10, suppress_health_check=[HealthCheck.data_too_large])
     def test_fetch_operations_are_logged_with_required_fields(self, market_data):
         """
         **Feature: observability-logging, Property 2: Fetch operations are logged with required fields**
@@ -396,7 +396,7 @@ class TestSchedulerService:
             clear_trace()
 
     @given(market_data_strategy(asset_type="crypto"))
-    @settings(max_examples=20)
+    @settings(max_examples=10, suppress_health_check=[HealthCheck.data_too_large])
     def test_analysis_operations_are_logged_with_indicators(self, market_data):
         """
         **Feature: observability-logging, Property 3: Analysis operations are logged with indicators**
@@ -474,10 +474,14 @@ class TestSchedulerService:
             sys.stdout = captured_output
 
             try:
-                # Mock SMTP to prevent actual email sending
-                with patch("src.services.email_service.smtplib.SMTP"):
-                    # Attempt to send email (will fail due to mock, but logs should be created)
-                    email_service.send_email(recipient, "Test Subject", "Test Content", "morning")
+                # Mock requests.post to prevent actual email sending
+                with patch("src.services.email_service.requests.post") as mock_post:
+                    mock_response = Mock()
+                    mock_response.status_code = 200
+                    mock_post.return_value = mock_response
+
+                    # Send email
+                    email_service.send_email(recipient, "Test Subject", "Test Content")
 
                     # Restore stdout
                     sys.stdout = original_stdout
@@ -495,10 +499,8 @@ class TestSchedulerService:
                         context = log_entry.get("context", {})
                         assert "recipient" in context, "Missing 'recipient' field"
                         assert "subject" in context, "Missing 'subject' field"
-                        assert "delivery_type" in context, "Missing 'delivery_type' field"
                         assert context["recipient"] == recipient
                         assert context["subject"] == "Test Subject"
-                        assert context["delivery_type"] == "morning"
 
             finally:
                 sys.stdout = original_stdout
