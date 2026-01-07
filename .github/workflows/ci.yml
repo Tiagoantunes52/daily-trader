@@ -41,6 +41,17 @@ jobs:
         continue-on-error: true
 
       - name: Run tests
+        env:
+          USE_MAILGUN: "true"
+          MAILGUN_DOMAIN: "test.mailgun.org"
+          MAILGUN_API_KEY: "test-key"
+          SENDER_EMAIL: "test@example.com"
+          SENDER_PASSWORD: "test-password"
+          SMTP_SERVER: "smtp.gmail.com"
+          SMTP_PORT: "587"
+          MORNING_TIME: "06:00"
+          EVENING_TIME: "18:00"
+          DATABASE_URL: "sqlite:///./test_market_tips.db"
         run: uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term
 
       - name: Upload results to Codecov

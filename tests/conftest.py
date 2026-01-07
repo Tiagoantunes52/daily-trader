@@ -2,6 +2,7 @@
 
 import os
 import tempfile
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import create_engine, event
@@ -67,3 +68,14 @@ def test_client(test_session):
     yield client
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def mock_mailgun_requests():
+    """Auto-mock all Mailgun API requests in tests."""
+    with patch("src.services.email_service.requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = "OK"
+        mock_post.return_value = mock_response
+        yield mock_post

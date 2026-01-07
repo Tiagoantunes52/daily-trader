@@ -15,6 +15,7 @@ from src.services.email_service import EmailService
 class TestEmailService:
     """Test suite for EmailService."""
 
+    @pytest.mark.timeout(5)
     def test_email_service_initialization(self):
         """Test that email service initializes correctly."""
         service = EmailService(db_session=None)
@@ -22,38 +23,30 @@ class TestEmailService:
         assert service.smtp_server is not None
         assert service.sender_email is not None
 
-    def test_send_email_success(self):
+    @pytest.mark.timeout(5)
+    def test_send_email_success(self, mock_mailgun_requests):
         """Test successful email sending."""
         service = EmailService(db_session=None)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_post.return_value = mock_response
+        result = service.send_email(
+            recipient="test@example.com", subject="Test Subject", content="<p>Test content</p>"
+        )
 
-            result = service.send_email(
-                recipient="test@example.com", subject="Test Subject", content="<p>Test content</p>"
-            )
+        assert result is True
+        mock_mailgun_requests.assert_called_once()
 
-            assert result is True
-            mock_post.assert_called_once()
-
-    def test_send_email_with_html_and_text(self):
+    @pytest.mark.timeout(5)
+    def test_send_email_with_html_and_text(self, mock_mailgun_requests):
         """Test that email is sent with both HTML and plain text versions."""
         service = EmailService(db_session=None)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_post.return_value = mock_response
+        result = service.send_email(
+            recipient="test@example.com", subject="Test Subject", content="<p>Test content</p>"
+        )
 
-            result = service.send_email(
-                recipient="test@example.com", subject="Test Subject", content="<p>Test content</p>"
-            )
-
-            assert result is True
-            # Verify post was called
-            mock_post.assert_called_once()
+        assert result is True
+        # Verify post was called
+        mock_mailgun_requests.assert_called_once()
 
     @pytest.mark.timeout(10)
     @given(st.integers(min_value=1, max_value=3))
@@ -108,6 +101,7 @@ class TestEmailService:
                 # If failure_attempt > 4, all attempts fail
                 assert result is False
 
+    @pytest.mark.timeout(5)
     def test_email_retry_delays_are_exponential(self):
         """Test that retry delays follow exponential backoff pattern."""
         service = EmailService(db_session=None)
@@ -115,26 +109,24 @@ class TestEmailService:
         # Verify retry delays are configured correctly
         assert service.retry_delays == [300, 900, 1800]  # 5min, 15min, 30min
 
-    def test_email_failure_after_all_retries(self):
+    @pytest.mark.timeout(5)
+    def test_email_failure_after_all_retries(self, mock_mailgun_requests):
         """Test that email sending fails after all retry attempts."""
         service = EmailService(db_session=None)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
-            # Always fail
-            mock_response = MagicMock()
-            mock_response.status_code = 500
-            mock_response.text = "Server error"
-            mock_post.return_value = mock_response
+        # Always fail
+        mock_mailgun_requests.return_value = MagicMock(status_code=500, text="Server error")
 
-            with patch("time.sleep"):
-                result = service.send_email(
-                    recipient="test@example.com",
-                    subject="Test Subject",
-                    content="<p>Test content</p>",
-                )
+        with patch("time.sleep"):
+            result = service.send_email(
+                recipient="test@example.com",
+                subject="Test Subject",
+                content="<p>Test content</p>",
+            )
 
-            assert result is False
+        assert result is False
 
+    @pytest.mark.timeout(5)
     def test_log_delivery_with_session(self):
         """Test delivery logging with database session."""
         mock_session = Mock()
@@ -152,6 +144,7 @@ class TestEmailService:
         mock_session.add.assert_called_once()
         mock_session.commit.assert_called_once()
 
+    @pytest.mark.timeout(5)
     def test_log_delivery_without_session(self):
         """Test that logging without session doesn't raise error."""
         service = EmailService(db_session=None)
@@ -165,7 +158,8 @@ class TestEmailService:
             attempt_number=1,
         )
 
-    def test_send_email_content(self):
+    @pytest.mark.timeout(5)
+    def test_send_email_content(self, mock_mailgun_requests):
         """Test sending formatted email content."""
         service = EmailService(db_session=None)
 
@@ -186,16 +180,12 @@ class TestEmailService:
             tips=[tip],
         )
 
-        with patch("src.services.email_service.requests.post") as mock_post:
-            mock_response = MagicMock()
-            mock_response.status_code = 200
-            mock_post.return_value = mock_response
+        result = service.send_email_content(email_content)
 
-            result = service.send_email_content(email_content)
+        assert result is True
+        mock_mailgun_requests.assert_called_once()
 
-            assert result is True
-            mock_post.assert_called_once()
-
+    @pytest.mark.timeout(5)
     def test_format_email_html_includes_tips(self):
         """Test that formatted email includes all tips."""
         service = EmailService(db_session=None)
@@ -226,6 +216,7 @@ class TestEmailService:
         assert "MACD" in html
         assert "CoinGecko" in html
 
+    @pytest.mark.timeout(5)
     def test_format_email_html_includes_market_data(self):
         """Test that formatted email includes market data."""
         service = EmailService(db_session=None)
@@ -258,6 +249,7 @@ class TestEmailService:
         assert "5.2" in html
         assert "CoinGecko" in html
 
+    @pytest.mark.timeout(5)
     def test_strip_html_removes_tags(self):
         """Test that HTML stripping works correctly."""
         service = EmailService(db_session=None)
@@ -269,6 +261,7 @@ class TestEmailService:
         assert "<strong>" not in text
         assert "This is bold text" in text
 
+    @pytest.mark.timeout(5)
     def test_email_with_multiple_sources(self):
         """Test email formatting with multiple sources."""
         service = EmailService(db_session=None)
