@@ -64,6 +64,38 @@ class DatabaseConfig:
     echo: bool = False
 
 
+@dataclass
+class OAuthConfig:
+    """OAuth configuration."""
+
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    google_redirect_uri: str | None = None
+    github_client_id: str | None = None
+    github_client_secret: str | None = None
+    github_redirect_uri: str | None = None
+
+
+@dataclass
+class RateLimitConfig:
+    """Rate limiting configuration."""
+
+    # Login endpoint rate limits
+    login_limit: int = 5  # 5 attempts per window
+    login_window: int = 300  # 5 minutes
+
+    # Registration endpoint rate limits
+    register_limit: int = 3  # 3 attempts per window
+    register_window: int = 600  # 10 minutes
+
+
+@dataclass
+class EncryptionConfig:
+    """Encryption configuration."""
+
+    encryption_key: str | None = None
+
+
 class Config:
     """Main application configuration."""
 
@@ -102,6 +134,26 @@ class Config:
             algorithm=os.getenv("JWT_ALGORITHM", "HS256"),
             access_token_expire_minutes=int(os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "15")),
             refresh_token_expire_days=int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7")),
+        )
+
+        self.oauth = OAuthConfig(
+            google_client_id=os.getenv("GOOGLE_CLIENT_ID"),
+            google_client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+            google_redirect_uri=os.getenv("GOOGLE_REDIRECT_URI"),
+            github_client_id=os.getenv("GITHUB_CLIENT_ID"),
+            github_client_secret=os.getenv("GITHUB_CLIENT_SECRET"),
+            github_redirect_uri=os.getenv("GITHUB_REDIRECT_URI"),
+        )
+
+        self.rate_limit = RateLimitConfig(
+            login_limit=int(os.getenv("RATE_LIMIT_LOGIN_ATTEMPTS", "5")),
+            login_window=int(os.getenv("RATE_LIMIT_LOGIN_WINDOW", "300")),
+            register_limit=int(os.getenv("RATE_LIMIT_REGISTER_ATTEMPTS", "3")),
+            register_window=int(os.getenv("RATE_LIMIT_REGISTER_WINDOW", "600")),
+        )
+
+        self.encryption = EncryptionConfig(
+            encryption_key=os.getenv("ENCRYPTION_KEY"),
         )
 
     def validate(self) -> bool:

@@ -79,3 +79,13 @@ def mock_mailgun_requests():
         mock_response.text = "OK"
         mock_post.return_value = mock_response
         yield mock_post
+
+
+@pytest.fixture(autouse=True)
+def clear_rate_limiter():
+    """Clear rate limiter state before each test."""
+    from src.services.rate_limiter import rate_limiter
+
+    rate_limiter.clear_all()
+    yield
+    rate_limiter.clear_all()
