@@ -9,19 +9,30 @@ on:
 jobs:
   add-to-project:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      projects: write
     steps:
       - name: Add issue to project
         if: github.event_name == 'issues'
         uses: actions/add-to-project@v1.0.2
         with:
+          # Option 1: Use project URL (update with your actual project URL)
           project-url: https://github.com/users/Tiagoantunes52/projects/1
+          # Option 2: Use project node ID (uncomment and add your project's node ID)
+          # project-id: PVT_kwDOBc3RhM4AH4cI
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add PR to project
         if: github.event_name == 'pull_request'
         uses: actions/add-to-project@v1.0.2
         with:
+          # Option 1: Use project URL (update with your actual project URL)
           project-url: https://github.com/users/Tiagoantunes52/projects/1
+          # Option 2: Use project node ID (uncomment and add your project's node ID)
+          # project-id: PVT_kwDOBc3RhM4AH4cI
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
   update-project-status:
