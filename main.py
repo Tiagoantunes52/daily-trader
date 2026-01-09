@@ -7,7 +7,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from src.api.auth_routes import router as auth_router
 from src.api.routes import router
+from src.api.user_routes import router as user_router
 from src.database.db import init_db
 from src.utils.config import config
 
@@ -46,6 +48,8 @@ app.add_middleware(
 )
 
 # Include API routes
+app.include_router(auth_router, tags=["authentication"])
+app.include_router(user_router, tags=["user"])
 app.include_router(router, prefix="/api", tags=["tips"])
 
 # Serve static files from frontend dist directory
