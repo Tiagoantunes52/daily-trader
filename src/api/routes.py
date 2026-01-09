@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -63,6 +63,21 @@ class UserProfileResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("asset_preferences", mode="before")
+    @classmethod
+    def parse_asset_preferences(cls, v):
+        """Parse asset_preferences from JSON string to list."""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            try:
+                import json
+
+                return json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return v
 
 
 def _parse_tip_record(record: TipRecord) -> DashboardTip:
