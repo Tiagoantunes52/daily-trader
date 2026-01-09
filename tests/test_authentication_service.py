@@ -1,5 +1,7 @@
 """Tests for authentication service with property-based testing."""
 
+import re
+
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -16,8 +18,8 @@ def db_session():
     """Create a test database session."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
-    SessionLocal = sessionmaker(bind=engine)
-    session = SessionLocal()
+    session_local = sessionmaker(bind=engine)
+    session = session_local()
     yield session
     session.close()
 
@@ -57,23 +59,26 @@ class TestAuthenticationServicePropertyBased:
         email = f"test_{hash(password) % 1000000}@example.com"
         name = "Test User"
 
-        # Try to register with the password
-        try:
+        # Check if password meets strength requirements (matching actual validation logic)
+        is_strong_password = (
+            len(password) >= 8
+            and re.search(r"[A-Z]", password) is not None
+            and re.search(r"[a-z]", password) is not None
+            and re.search(r"\d", password) is not None
+            and re.search(r"[!@#$%^&*]", password) is not None
+        )
+
+        if is_strong_password:
+            # Strong password should succeed
             user = auth_service.register(email, password, name)
-
-            # If registration succeeded, password must be strong
-            # Verify it has all required characteristics
-            assert len(password) >= 8
-            assert any(c.isupper() for c in password)
-            assert any(c.islower() for c in password)
-            assert any(c.isdigit() for c in password)
-            assert any(c in "!@#$%^&*" for c in password)
-
-        except ValueError as e:
-            # If registration failed, it should be due to password validation
-            error_msg = str(e).lower()
+            assert user is not None
+        else:
+            # Weak password should fail with validation error
+            with pytest.raises(ValueError, match=r"Password|password|validation") as exc_info:
+                auth_service.register(email, password, name)
 
             # Check that the error is related to password validation
+            error_msg = str(exc_info.value).lower()
             password_related_errors = [
                 "password",
                 "characters",
@@ -85,7 +90,7 @@ class TestAuthenticationServicePropertyBased:
 
             # At least one password-related term should be in the error
             assert any(term in error_msg for term in password_related_errors), (
-                f"Expected password validation error, got: {e}"
+                f"Expected password validation error, got: {exc_info.value}"
             )
 
     @settings(
@@ -120,7 +125,7 @@ class TestAuthenticationServicePropertyBased:
 
         try:
             # Register user
-            user = auth_service.register(email, password, name)
+            auth_service.register(email, password, name)
 
             # Test 1: Login with correct password should succeed
             token_response = auth_service.login(email, password)
@@ -130,14 +135,8 @@ class TestAuthenticationServicePropertyBased:
 
             # Test 2: Login with incorrect password should fail with generic error
             wrong_password = password + "_wrong"
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(ValueError, match="Invalid email or password"):
                 auth_service.login(email, wrong_password)
-
-            # Error should be generic (not revealing which field is wrong)
-            error_msg = str(exc_info.value).lower()
-            assert "invalid" in error_msg
-            # Should not specifically say "password" is wrong
-            assert "password is incorrect" not in error_msg
 
         except ValueError:
             # Registration might fail for various reasons (duplicate email, etc.)
@@ -166,20 +165,26 @@ class TestAuthenticationServicePropertyBased:
         password = "SecurePassword123!"
         name = "Test User"
 
-        try:
-            user = auth_service.register(email, password, name)
+        # Check if email is valid (contains @)
+        is_valid_email = "@" in email
 
-            # If registration succeeded, email must be valid
-            # Must contain @ symbol
-            assert "@" in email
+        if is_valid_email:
+            # Valid email should succeed (or fail for other reasons like duplicates)
+            try:
+                user = auth_service.register(email, password, name)
+                assert user is not None
+            except ValueError:
+                # Registration might fail for other reasons (duplicate email, etc.)
+                # This is acceptable in property testing
+                pass
+        else:
+            # Invalid email should fail with validation error
+            with pytest.raises(ValueError, match=r"email|Email|invalid|Invalid") as exc_info:
+                auth_service.register(email, password, name)
 
-        except ValueError as e:
-            # If registration failed, check if it's due to email validation
-            error_msg = str(e).lower()
-
-            # If email is invalid, error should mention email
-            if "@" not in email:
-                assert "email" in error_msg or "invalid" in error_msg
+            # Error should mention email validation
+            error_msg = str(exc_info.value).lower()
+            assert "email" in error_msg or "invalid" in error_msg
 
 
 class TestAuthenticationServiceUnit:
@@ -232,8 +237,8 @@ class TestOAuthCallbackPropertyBased:
         # Create a fresh database session for each test
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)
-        SessionLocal = sessionmaker(bind=engine)
-        db_session = SessionLocal()
+        session_local = sessionmaker(bind=engine)
+        db_session = session_local()
 
         try:
             auth_service = AuthenticationService(db_session)
@@ -317,8 +322,8 @@ class TestOAuthCallbackPropertyBased:
         # Create a fresh database session for each test
         engine = create_engine("sqlite:///:memory:")
         Base.metadata.create_all(engine)
-        SessionLocal = sessionmaker(bind=engine)
-        db_session = SessionLocal()
+        session_local = sessionmaker(bind=engine)
+        db_session = session_local()
 
         try:
             auth_service = AuthenticationService(db_session)
@@ -372,10 +377,6 @@ class TestOAuthCallbackPropertyBased:
                 )
         finally:
             db_session.close()
-
-
-class TestAuthenticationServiceUnitContinued:
-    """Additional unit tests for AuthenticationService edge cases."""
 
 
 class TestAuthenticationServiceUnitContinued:

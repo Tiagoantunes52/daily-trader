@@ -295,7 +295,7 @@ class TestRateLimiting:
         login_data = {"email": "ratelimit@example.com", "password": "WrongPassword123!"}
 
         # First 5 attempts should be allowed (but fail due to wrong password)
-        for i in range(5):
+        for _i in range(5):
             response = test_client.post("/auth/login", json=login_data)
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -377,7 +377,7 @@ class TestRateLimiting:
         # Make login attempts up to the limit
         login_data = {"email": "iptest@example.com", "password": "WrongPassword123!"}
 
-        for i in range(5):
+        for _i in range(5):
             response = test_client.post("/auth/login", json=login_data)
             assert response.status_code == status.HTTP_401_UNAUTHORIZED
 

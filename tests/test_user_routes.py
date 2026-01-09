@@ -327,9 +327,8 @@ class TestUserProfilePropertyBased:
             assert updated_user.email == email
 
             # Verify only the specified connection was removed
-            remaining_connections = [conn for conn in updated_user.oauth_connections]
-            assert len(remaining_connections) == 1
-            assert remaining_connections[0].provider == other_provider
+            assert len(updated_user.oauth_connections) == 1
+            assert updated_user.oauth_connections[0].provider == other_provider
 
         except Exception:
             # Skip invalid test cases
@@ -576,7 +575,7 @@ class TestUserRoutesUnit:
         password_service = PasswordService()
         password_hash = password_service.hash_password("SecurePass123!")
 
-        user1 = user_service.create_user(
+        _user1 = user_service.create_user(
             email="user1@example.com", password_hash=password_hash, name="User One"
         )
 

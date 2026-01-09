@@ -81,7 +81,6 @@ class CSRFService:
             payload = token_data[:-32]
 
             # Extract timestamp and session data
-            random_data = payload[:32]
             remaining = payload[32:]
 
             # Find delimiter to separate timestamp from session data

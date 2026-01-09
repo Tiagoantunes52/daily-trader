@@ -16,7 +16,7 @@ class TestRateLimiterUnitTests:
         window = 60
 
         # First 5 requests should be allowed
-        for i in range(5):
+        for _i in range(5):
             allowed, info = rate_limiter.is_allowed(client_id, limit, window)
             assert allowed is True
             assert info["limit"] == limit
@@ -29,7 +29,7 @@ class TestRateLimiterUnitTests:
         window = 60
 
         # First 3 requests should be allowed
-        for i in range(3):
+        for _i in range(3):
             allowed, info = rate_limiter.is_allowed(client_id, limit, window)
             assert allowed is True
 
