@@ -8,8 +8,9 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
+from src.api.dependencies import get_current_user
 from src.database.db import get_db
-from src.database.models import MarketDataRecord, TipRecord
+from src.database.models import MarketDataRecord, TipRecord, User
 from src.models.market_data import DataSource, HistoricalData, MarketData
 from src.models.trading_tip import DashboardTip, TipSource
 from src.services.scheduler_service import SchedulerService
@@ -123,7 +124,10 @@ def _parse_market_data_record(record: MarketDataRecord) -> MarketData:
 
 
 @router.post("/tips/generate")
-async def generate_tips(db: Session = Depends(get_db)):
+async def generate_tips(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Trigger tip generation pipeline on-demand.
 
@@ -131,6 +135,7 @@ async def generate_tips(db: Session = Depends(get_db)):
     Useful for dashboard initialization or manual refresh.
 
     Args:
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
@@ -153,6 +158,7 @@ async def generate_tips(db: Session = Depends(get_db)):
             "total": len(dashboard_tips),
             "generated": True,
             "message": "Tips generated successfully",
+            "user_id": current_user.id,  # Include user context
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating tips: {e!s}") from e
@@ -164,6 +170,7 @@ async def get_tips(
     days: int | None = Query(None, description="Number of past days to retrieve"),
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -177,6 +184,7 @@ async def get_tips(
         days: Number of past days to retrieve
         skip: Number of results to skip (pagination)
         limit: Maximum number of results to return
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
@@ -216,11 +224,21 @@ async def get_tips(
     # Convert to DashboardTip models
     dashboard_tips = [_parse_tip_record(tip) for tip in tips]
 
-    return {"tips": dashboard_tips, "total": total, "skip": skip, "limit": limit}
+    return {
+        "tips": dashboard_tips,
+        "total": total,
+        "skip": skip,
+        "limit": limit,
+        "user_id": current_user.id,  # Include user context
+    }
 
 
 @router.get("/market-data")
-async def get_market_data(symbols: list[str] | None = Query(None), db: Session = Depends(get_db)):
+async def get_market_data(
+    symbols: list[str] | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Get current and historical market data.
 
@@ -258,6 +276,7 @@ async def get_tip_history(
     asset_type: str | None = Query(None, description="Filter by 'crypto' or 'stock'"),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     """
@@ -297,7 +316,11 @@ async def get_tip_history(
 
 
 @router.post("/users", response_model=UserProfileResponse)
-async def create_user(user_data: UserProfileCreate, db: Session = Depends(get_db)):
+async def create_user(
+    user_data: UserProfileCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Create a new user profile.
 
@@ -323,17 +346,28 @@ async def create_user(user_data: UserProfileCreate, db: Session = Depends(get_db
 
 
 @router.get("/users/{user_id}", response_model=UserProfileResponse)
-async def get_user(user_id: str, db: Session = Depends(get_db)):
+async def get_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Retrieve user profile by ID.
 
     Args:
         user_id: User ID
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         User profile
     """
+    # Ensure users can only access their own profile
+    if str(current_user.id) != user_id:
+        raise HTTPException(
+            status_code=403, detail="Access denied: can only access your own profile"
+        )
+
     service = UserService(db_session=db)
     user = service.get_user_by_id(user_id)
 
@@ -344,17 +378,28 @@ async def get_user(user_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/users/email/{email}", response_model=UserProfileResponse)
-async def get_user_by_email(email: str, db: Session = Depends(get_db)):
+async def get_user_by_email(
+    email: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Retrieve user profile by email address.
 
     Args:
         email: User email address
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         User profile
     """
+    # Ensure users can only access their own profile
+    if current_user.email != email:
+        raise HTTPException(
+            status_code=403, detail="Access denied: can only access your own profile"
+        )
+
     service = UserService(db_session=db)
     user = service.get_user_by_email(email)
 
@@ -365,18 +410,30 @@ async def get_user_by_email(email: str, db: Session = Depends(get_db)):
 
 
 @router.put("/users/{user_id}", response_model=UserProfileResponse)
-async def update_user(user_id: str, user_data: UserProfileUpdate, db: Session = Depends(get_db)):
+async def update_user(
+    user_id: str,
+    user_data: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Update user profile.
 
     Args:
         user_id: User ID
         user_data: Updated user profile data
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         Updated user profile
     """
+    # Ensure users can only update their own profile
+    if str(current_user.id) != user_id:
+        raise HTTPException(
+            status_code=403, detail="Access denied: can only update your own profile"
+        )
+
     service = UserService(db_session=db)
 
     try:
@@ -406,17 +463,28 @@ async def update_user(user_id: str, user_data: UserProfileUpdate, db: Session = 
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: str, db: Session = Depends(get_db)):
+async def delete_user(
+    user_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Delete user profile.
 
     Args:
         user_id: User ID
+        current_user: Current authenticated user
         db: Database session
 
     Returns:
         Deletion status
     """
+    # Ensure users can only delete their own profile
+    if str(current_user.id) != user_id:
+        raise HTTPException(
+            status_code=403, detail="Access denied: can only delete your own profile"
+        )
+
     service = UserService(db_session=db)
 
     try:

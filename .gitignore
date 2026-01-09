@@ -69,3 +69,11 @@ Thumbs.db
 
 # Project specific
 .kiro/settings/
+
+# Ruff
+.ruff_cache/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
