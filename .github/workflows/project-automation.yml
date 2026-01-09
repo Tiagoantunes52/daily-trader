@@ -13,7 +13,6 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
-      projects: write
     steps:
       - name: Add issue to project
         if: github.event_name == 'issues'
