@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -13,6 +14,31 @@ from src.models.trading_tip import EmailContent, TipSource, TradingTip
 from src.services.analysis_engine import AnalysisEngine
 from src.services.email_service import EmailService
 from src.services.scheduler_service import SchedulerService
+
+
+def create_authenticated_user(test_client: TestClient):
+    """Create and authenticate a test user, return user data and tokens."""
+    # Register a user
+    user_data = {
+        "email": "testuser@example.com",
+        "password": "SecurePass123!",
+        "name": "Test User",
+    }
+    register_response = test_client.post("/auth/register", json=user_data)
+    assert register_response.status_code == status.HTTP_201_CREATED
+    user_info = register_response.json()
+
+    # Login to get tokens
+    login_data = {"email": user_data["email"], "password": user_data["password"]}
+    login_response = test_client.post("/auth/login", json=login_data)
+    assert login_response.status_code == status.HTTP_200_OK
+    tokens = login_response.json()
+
+    return {
+        "user": user_info,
+        "tokens": tokens,
+        "headers": {"Authorization": f"Bearer {tokens['access_token']}"},
+    }
 
 
 class TestSchedulerToEmailFlow:
@@ -170,6 +196,9 @@ class TestSchedulerToDashboardFlow:
 
     def test_tips_persisted_to_database(self, test_session: Session, test_client: TestClient):
         """Test that generated tips are persisted and accessible via dashboard API."""
+        # Create authenticated user
+        auth_user = create_authenticated_user(test_client)
+
         scheduler = SchedulerService(db_session=test_session)
 
         # Create mock data
@@ -230,7 +259,7 @@ class TestSchedulerToDashboardFlow:
                             test_session.commit()
 
                             # Verify tip is accessible via API
-                            response = test_client.get("/api/tips")
+                            response = test_client.get("/api/tips", headers=auth_user["headers"])
                             assert response.status_code == 200
                             data = response.json()
                             assert data["total"] == 1
@@ -241,6 +270,9 @@ class TestSchedulerToDashboardFlow:
         self, test_session: Session, test_client: TestClient
     ):
         """Test that market data is persisted and accessible via dashboard API."""
+        # Create authenticated user
+        auth_user = create_authenticated_user(test_client)
+
         # Create and persist market data
         market_data_record = MarketDataRecord(
             id="test-md-1",
@@ -264,7 +296,7 @@ class TestSchedulerToDashboardFlow:
         test_session.commit()
 
         # Verify market data is accessible via API
-        response = test_client.get("/api/market-data?symbols=BTC")
+        response = test_client.get("/api/market-data?symbols=BTC", headers=auth_user["headers"])
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 1
@@ -490,6 +522,9 @@ class TestEndToEndDashboardFlow:
 
     def test_dashboard_displays_latest_tips(self, test_session: Session, test_client: TestClient):
         """Test that dashboard displays the latest tips."""
+        # Create authenticated user
+        auth_user = create_authenticated_user(test_client)
+
         # Create multiple tips
         for i in range(3):
             tip = TipRecord(
@@ -508,7 +543,7 @@ class TestEndToEndDashboardFlow:
         test_session.commit()
 
         # Retrieve tips via API
-        response = test_client.get("/api/tips")
+        response = test_client.get("/api/tips", headers=auth_user["headers"])
         assert response.status_code == 200
         data = response.json()
         assert data["total"] == 3
@@ -516,6 +551,9 @@ class TestEndToEndDashboardFlow:
 
     def test_dashboard_filters_by_asset_type(self, test_session: Session, test_client: TestClient):
         """Test that dashboard correctly filters by asset type."""
+        # Create authenticated user
+        auth_user = create_authenticated_user(test_client)
+
         # Create tips of different types
         crypto_tip = TipRecord(
             id="crypto-tip",
@@ -548,13 +586,13 @@ class TestEndToEndDashboardFlow:
         test_session.commit()
 
         # Filter by crypto
-        response = test_client.get("/api/tips?asset_type=crypto")
+        response = test_client.get("/api/tips?asset_type=crypto", headers=auth_user["headers"])
         assert response.status_code == 200
         data = response.json()
         assert all(tip["type"] == "crypto" for tip in data["tips"])
 
         # Filter by stock
-        response = test_client.get("/api/tips?asset_type=stock")
+        response = test_client.get("/api/tips?asset_type=stock", headers=auth_user["headers"])
         assert response.status_code == 200
         data = response.json()
         assert all(tip["type"] == "stock" for tip in data["tips"])
@@ -563,6 +601,9 @@ class TestEndToEndDashboardFlow:
         self, test_session: Session, test_client: TestClient
     ):
         """Test that dashboard tip history respects date range."""
+        # Create authenticated user
+        auth_user = create_authenticated_user(test_client)
+
         # Create tips from different dates
         for i in range(5):
             tip = TipRecord(
@@ -581,7 +622,7 @@ class TestEndToEndDashboardFlow:
         test_session.commit()
 
         # Get history for last 2 days
-        response = test_client.get("/api/tip-history?days=2")
+        response = test_client.get("/api/tip-history?days=2", headers=auth_user["headers"])
         assert response.status_code == 200
         data = response.json()
         assert data["days"] == 2
@@ -590,6 +631,9 @@ class TestEndToEndDashboardFlow:
 
     def test_dashboard_market_data_display(self, test_session: Session, test_client: TestClient):
         """Test that dashboard displays market data correctly."""
+        # Create authenticated user
+        auth_user = create_authenticated_user(test_client)
+
         # Create market data
         market_data = MarketDataRecord(
             id="md-1",
@@ -609,7 +653,7 @@ class TestEndToEndDashboardFlow:
         test_session.commit()
 
         # Retrieve market data
-        response = test_client.get("/api/market-data?symbols=BTC")
+        response = test_client.get("/api/market-data?symbols=BTC", headers=auth_user["headers"])
         assert response.status_code == 200
         data = response.json()
         assert data["count"] == 1
