@@ -769,8 +769,8 @@ class TestProtectedEndpointDataIsolation:
         # Register users
         reg1 = test_client.post("/auth/register", json=user1_data)
         reg2 = test_client.post("/auth/register", json=user2_data)
-        user1_id = reg1.json()["id"]
-        user2_id = reg2.json()["id"]
+        _user1_id = reg1.json()["id"]
+        _user2_id = reg2.json()["id"]
 
         # Login users
         login1 = test_client.post(
