@@ -1,5 +1,4 @@
 import axios from 'axios'
-import sessionManager from '../utils/sessionManager.js'
 
 const API_BASE_URL = '/api'
 

@@ -210,7 +210,7 @@ export default function LoginPage() {
 
         <div className="login-footer">
           <p>
-            Don't have an account? <a href="/register">Sign up</a>
+            Don&apos;t have an account? <a href="/register">Sign up</a>
           </p>
           <p>
             <a href="/forgot-password">Forgot your password?</a>

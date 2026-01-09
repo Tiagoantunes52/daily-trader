@@ -1,5 +1,4 @@
 import React, { useState } from 'react'
-import PropTypes from 'prop-types'
 import { createUser, updateUser, getUser } from '../api/client'
 import './UserSettings.css'
 
