@@ -24,6 +24,7 @@ from src.services.authentication_service import AuthenticationService
 from src.services.csrf_service import CSRFService
 from src.services.oauth_service import OAuthService
 from src.services.token_service import TokenService
+from src.utils.config import config
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
