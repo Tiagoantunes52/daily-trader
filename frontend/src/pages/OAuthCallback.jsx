@@ -53,9 +53,8 @@ export default function OAuthCallback() {
           return
         }
 
-        const response = await fetch(`/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, {
-          method: 'GET',
-          credentials: 'include' // Include cookies for session management
+        const response = await fetch(`http://localhost:8000/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, {
+          method: 'GET'
         })
 
         const data = await response.json()
@@ -64,11 +63,15 @@ export default function OAuthCallback() {
           // Authentication successful
           setStatus('success')
           setMessage('Authentication successful! Redirecting to dashboard...')
-          
-          // Store tokens in secure cookies (handled by backend)
+
+          // Store tokens in session manager
+          const { default: sessionManager } = await import('../utils/sessionManager.js')
+          sessionManager.storeTokens(data.access_token, data.refresh_token)
+          await sessionManager.initialize()
+
           // Redirect to dashboard after a short delay
           setTimeout(() => {
-            window.location.href = '/dashboard'
+            window.location.href = '/'
           }, 2000)
         } else {
           // Authentication failed
@@ -114,7 +117,7 @@ export default function OAuthCallback() {
               <div className="error-icon">✗</div>
               <h2>Authentication Failed</h2>
               <p>{message}</p>
-              <button 
+              <button
                 className="retry-button"
                 onClick={handleRetry}
               >

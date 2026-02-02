@@ -1,30 +1,42 @@
-import React, { useState, useEffect } from 'react'
-import CurrentTips from './pages/CurrentTips'
-import TipHistory from './pages/TipHistory'
-import UserSettings from './pages/UserSettings'
-import LoginPage from './pages/LoginPage'
-import OAuthCallback from './pages/OAuthCallback'
-import sessionManager from './utils/sessionManager.js'
+import { useEffect, useState } from 'react'
 import { logout } from './api/client.js'
 import './App.css'
+import CurrentTips from './pages/CurrentTips'
+import LoginPage from './pages/LoginPage'
+import OAuthCallback from './pages/OAuthCallback'
+import TipHistory from './pages/TipHistory'
+import UserSettings from './pages/UserSettings'
+import sessionManager from './utils/sessionManager.js'
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('current')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Handle OAuth callback routes FIRST, before any other logic
+  const path = window.location.pathname
+  const isOAuthCallback = path.includes('/auth/google/callback') || path.includes('/auth/github/callback')
+
+  if (isOAuthCallback) {
+    return <OAuthCallback />
+  }
 
   useEffect(() => {
     // Initialize session manager and check authentication
     const initializeApp = async () => {
       try {
-        await sessionManager.initialize()
-        const authenticated = await sessionManager.isAuthenticated()
+        // Initialize session manager and get authentication status
+        // This avoids making two separate API calls
+        const authenticated = await sessionManager.initialize()
         setIsAuthenticated(authenticated)
       } catch (error) {
         console.error('App initialization error:', error)
         setIsAuthenticated(false)
+      } finally {
+        setIsLoading(false)
       }
     }
-    
+
     initializeApp()
 
     // Cleanup session manager on unmount
@@ -44,10 +56,14 @@ export default function App() {
     }
   }
 
-  // Handle OAuth callback routes
-  const path = window.location.pathname
-  if (path.includes('/auth/google/callback') || path.includes('/auth/github/callback')) {
-    return <OAuthCallback />
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="app-loading">
+        <div className="loading-spinner large"></div>
+        <p>Loading...</p>
+      </div>
+    )
   }
 
   // Show login page if not authenticated
