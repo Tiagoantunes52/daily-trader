@@ -92,7 +92,7 @@ jobs:
         run: npm run test:run
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./frontend/coverage/coverage-final.json
           flags: frontend
