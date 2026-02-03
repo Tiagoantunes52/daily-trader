@@ -12,34 +12,108 @@ class SessionManager {
     this.refreshTimer = null
     this.isRefreshing = false
     this.refreshPromise = null
+    this.accessToken = null
+    this.refreshTokenValue = null
   }
 
   /**
    * Initialize session management
    * Sets up automatic token refresh if user is authenticated
+   * @returns {Promise<boolean>} True if authenticated, false otherwise
    */
   async initialize() {
     try {
+      // Load tokens from localStorage
+      this.loadTokens()
+
       // Check if user has valid session
       const isAuthenticated = await this.isAuthenticated()
       if (isAuthenticated) {
         this.scheduleTokenRefresh()
       }
+      return isAuthenticated
     } catch (error) {
       console.error('Failed to initialize session manager:', error)
+      return false
+    }
+  }
+
+  /**
+   * Load tokens from localStorage
+   */
+  loadTokens() {
+    try {
+      this.accessToken = localStorage.getItem('access_token')
+      this.refreshTokenValue = localStorage.getItem('refresh_token')
+    } catch (error) {
+      console.error('Failed to load tokens from localStorage:', error)
+      this.accessToken = null
+      this.refreshTokenValue = null
+    }
+  }
+
+  /**
+   * Store tokens in localStorage
+   * @param {string} accessToken - JWT access token
+   * @param {string} refreshToken - JWT refresh token
+   */
+  storeTokens(accessToken, refreshToken) {
+    try {
+      this.accessToken = accessToken
+      this.refreshTokenValue = refreshToken
+      localStorage.setItem('access_token', accessToken)
+      localStorage.setItem('refresh_token', refreshToken)
+    } catch (error) {
+      console.error('Failed to store tokens in localStorage:', error)
+    }
+  }
+
+  /**
+   * Clear tokens from memory and localStorage
+   */
+  clearTokens() {
+    this.accessToken = null
+    this.refreshTokenValue = null
+    try {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+    } catch (error) {
+      console.error('Failed to clear tokens from localStorage:', error)
     }
   }
 
   /**
    * Check if user is currently authenticated
+   * @param {boolean} skipProfileCheck - Skip profile API call (useful during OAuth flows)
    * @returns {Promise<boolean>} True if authenticated, false otherwise
    */
-  async isAuthenticated() {
+  async isAuthenticated(skipProfileCheck = false) {
+    // During OAuth flows, we might want to skip the profile check
+    // to avoid race conditions
+    if (skipProfileCheck) {
+      return false
+    }
+
+    // Check if we have an access token
+    if (!this.accessToken) {
+      return false
+    }
+
     try {
       const response = await fetch('/api/user/profile', {
         method: 'GET',
-        credentials: 'include'
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json'
+        }
       })
+
+      if (response.status === 401) {
+        // Token is invalid or expired, clear it
+        this.clearTokens()
+        return false
+      }
+
       return response.ok
     } catch (error) {
       console.error('Authentication check failed:', error)
@@ -75,15 +149,26 @@ class SessionManager {
    */
   async _performTokenRefresh() {
     try {
+      if (!this.refreshTokenValue) {
+        console.warn('No refresh token available')
+        this.handleAuthenticationFailure()
+        return false
+      }
+
       const response = await fetch('/auth/refresh', {
         method: 'POST',
-        credentials: 'include',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          refresh_token: this.refreshTokenValue
+        })
       })
 
       if (response.ok) {
+        const tokenData = await response.json()
+        // Store new tokens
+        this.storeTokens(tokenData.access_token, tokenData.refresh_token)
         // Token refreshed successfully, schedule next refresh
         this.scheduleTokenRefresh()
         return true
@@ -130,6 +215,9 @@ class SessionManager {
       this.refreshTimer = null
     }
 
+    // Clear tokens
+    this.clearTokens()
+
     // Redirect to login page
     window.location.href = '/login'
   }
@@ -147,23 +235,28 @@ class SessionManager {
         this.refreshTimer = null
       }
 
-      // Call logout endpoint
-      const response = await fetch('/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      })
+      // Call logout endpoint if we have an access token
+      if (this.accessToken) {
+        await fetch('/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        })
+      }
 
-      // Redirect to login regardless of response
-      // (backend should clear cookies even if request fails)
+      // Clear tokens
+      this.clearTokens()
+
+      // Redirect to login
       window.location.href = '/login'
-      
-      return response.ok
+
+      return true
     } catch (error) {
       console.error('Logout error:', error)
-      // Still redirect to login on error
+      // Still clear tokens and redirect on error
+      this.clearTokens()
       window.location.href = '/login'
       return false
     }
@@ -176,10 +269,19 @@ class SessionManager {
    * @returns {Promise<Response>} The fetch response
    */
   async authenticatedFetch(url, options = {}) {
-    // Ensure credentials are included
+    // Ensure we have an access token
+    if (!this.accessToken) {
+      throw new Error('No access token available')
+    }
+
+    // Add Authorization header
     const fetchOptions = {
       ...options,
-      credentials: 'include'
+      headers: {
+        ...options.headers,
+        'Authorization': `Bearer ${this.accessToken}`,
+        'Content-Type': 'application/json'
+      }
     }
 
     try {
@@ -188,8 +290,10 @@ class SessionManager {
       // If request fails with 401, try to refresh token and retry
       if (response.status === 401) {
         const refreshSuccess = await this.refreshToken()
-        
+
         if (refreshSuccess) {
+          // Update Authorization header with new token
+          fetchOptions.headers['Authorization'] = `Bearer ${this.accessToken}`
           // Retry the original request
           response = await fetch(url, fetchOptions)
         } else {

@@ -25,6 +25,19 @@ describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     window.location.href = ''
+    
+    // Mock OAuth status endpoint to return available providers
+    fetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: {
+        get: vi.fn().mockReturnValue('application/json')
+      },
+      json: vi.fn().mockResolvedValue({
+        google_available: true,
+        github_available: true
+      })
+    })
   })
 
   afterEach(() => {
@@ -32,7 +45,7 @@ describe('LoginPage', () => {
   })
 
   describe('Form Rendering', () => {
-    it('renders login form with all required elements', () => {
+    it('renders login form with all required elements', async () => {
       render(<LoginPage />)
       
       // Check header elements
@@ -45,9 +58,11 @@ describe('LoginPage', () => {
       expect(screen.getByLabelText('Password')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Sign In' })).toBeInTheDocument()
       
-      // Check OAuth buttons
-      expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeInTheDocument()
+      // Wait for OAuth buttons to appear after status check
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Continue with GitHub' })).toBeInTheDocument()
+      })
       
       // Check footer links
       expect(screen.getByText("Don't have an account?")).toBeInTheDocument()
@@ -148,13 +163,12 @@ describe('LoginPage', () => {
           body: JSON.stringify({
             email: 'test@example.com',
             password: 'password123'
-          }),
-          credentials: 'include'
+          })
         })
       })
       
       await waitFor(() => {
-        expect(window.location.href).toBe('/dashboard')
+        expect(window.location.href).toBe('/')
       })
     })
 
@@ -180,7 +194,7 @@ describe('LoginPage', () => {
       expect(screen.getByRole('button', { name: /signing in/i })).toBeDisabled()
       
       await waitFor(() => {
-        expect(window.location.href).toBe('/dashboard')
+        expect(window.location.href).toBe('/')
       })
     })
 
@@ -282,31 +296,34 @@ describe('LoginPage', () => {
   })
 
   describe('OAuth Button Functionality', () => {
-    it('handles Google OAuth button click', () => {
+    it('handles Google OAuth button click', async () => {
       render(<LoginPage />)
       
-      const googleButton = screen.getByRole('button', { name: 'Continue with Google' })
+      // Wait for OAuth button to appear
+      const googleButton = await screen.findByRole('button', { name: 'Continue with Google' })
       fireEvent.click(googleButton)
       
       expect(mockSessionStorage.setItem).toHaveBeenCalledWith('oauth_state', expect.any(String))
       expect(window.location.href).toMatch(/^\/auth\/google\/authorize\?state=/)
     })
 
-    it('handles GitHub OAuth button click', () => {
+    it('handles GitHub OAuth button click', async () => {
       render(<LoginPage />)
       
-      const githubButton = screen.getByRole('button', { name: 'Continue with GitHub' })
+      // Wait for OAuth button to appear
+      const githubButton = await screen.findByRole('button', { name: 'Continue with GitHub' })
       fireEvent.click(githubButton)
       
       expect(mockSessionStorage.setItem).toHaveBeenCalledWith('oauth_state', expect.any(String))
       expect(window.location.href).toMatch(/^\/auth\/github\/authorize\?state=/)
     })
 
-    it('generates different state parameters for each OAuth request', () => {
+    it('generates different state parameters for each OAuth request', async () => {
       render(<LoginPage />)
       
-      const googleButton = screen.getByRole('button', { name: 'Continue with Google' })
-      const githubButton = screen.getByRole('button', { name: 'Continue with GitHub' })
+      // Wait for OAuth buttons to appear
+      const googleButton = await screen.findByRole('button', { name: 'Continue with Google' })
+      const githubButton = await screen.findByRole('button', { name: 'Continue with GitHub' })
       
       fireEvent.click(googleButton)
       const firstState = mockSessionStorage.setItem.mock.calls[0][1]
@@ -331,8 +348,10 @@ describe('LoginPage', () => {
       const emailInput = screen.getByLabelText('Email Address')
       const passwordInput = screen.getByLabelText('Password')
       const submitButton = screen.getByRole('button', { name: 'Sign In' })
-      const googleButton = screen.getByRole('button', { name: 'Continue with Google' })
-      const githubButton = screen.getByRole('button', { name: 'Continue with GitHub' })
+      
+      // Wait for OAuth buttons to appear
+      const googleButton = await screen.findByRole('button', { name: 'Continue with Google' })
+      const githubButton = await screen.findByRole('button', { name: 'Continue with GitHub' })
       
       fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
       fireEvent.change(passwordInput, { target: { value: 'password123' } })
@@ -343,7 +362,7 @@ describe('LoginPage', () => {
       expect(githubButton).toBeDisabled()
       
       await waitFor(() => {
-        expect(window.location.href).toBe('/dashboard')
+        expect(window.location.href).toBe('/')
       })
     })
   })

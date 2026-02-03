@@ -4,11 +4,25 @@ const API_BASE_URL = '/api'
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
-  withCredentials: true, // Include cookies for authentication
+  timeout: 10000
 })
 
-// Add request interceptor to handle authentication
+// Add request interceptor to include JWT token
+client.interceptors.request.use(
+  async (config) => {
+    // Get access token from session manager
+    const { default: sessionManager } = await import('../utils/sessionManager.js')
+    if (sessionManager.accessToken) {
+      config.headers.Authorization = `Bearer ${sessionManager.accessToken}`
+    }
+    return config
+  },
+  (error) => {
+    return Promise.reject(error)
+  }
+)
+
+// Add response interceptor to handle authentication
 client.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -21,11 +35,13 @@ client.interceptors.response.use(
       try {
         // Dynamically import session manager to avoid circular dependency
         const { default: sessionManager } = await import('../utils/sessionManager.js')
-        
+
         // Try to refresh the token
         const refreshSuccess = await sessionManager.refreshToken()
-        
+
         if (refreshSuccess) {
+          // Update Authorization header with new token
+          originalRequest.headers.Authorization = `Bearer ${sessionManager.accessToken}`
           // Retry the original request
           return client(originalRequest)
         } else {
@@ -44,33 +60,33 @@ client.interceptors.response.use(
 
 export const getTips = async (filters = {}) => {
   const params = new URLSearchParams()
-  
+
   if (filters.assetType) params.append('asset_type', filters.assetType)
   if (filters.days) params.append('days', filters.days)
   if (filters.skip !== undefined) params.append('skip', filters.skip)
   if (filters.limit !== undefined) params.append('limit', filters.limit)
-  
+
   const response = await client.get('/tips', { params })
   return response.data
 }
 
 export const getMarketData = async (symbols = []) => {
   const params = new URLSearchParams()
-  
+
   symbols.forEach(symbol => params.append('symbols', symbol))
-  
+
   const response = await client.get('/market-data', { params })
   return response.data
 }
 
 export const getTipHistory = async (filters = {}) => {
   const params = new URLSearchParams()
-  
+
   if (filters.days !== undefined) params.append('days', filters.days)
   if (filters.assetType) params.append('asset_type', filters.assetType)
   if (filters.skip !== undefined) params.append('skip', filters.skip)
   if (filters.limit !== undefined) params.append('limit', filters.limit)
-  
+
   const response = await client.get('/tip-history', { params })
   return response.data
 }
@@ -89,16 +105,21 @@ export const login = async (email, password) => {
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password }),
-    credentials: 'include'
+    body: JSON.stringify({ email, password })
   })
-  
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.message || 'Login failed')
   }
-  
-  return response.json()
+
+  const tokenData = await response.json()
+
+  // Store tokens in session manager
+  const { default: sessionManager } = await import('../utils/sessionManager.js')
+  sessionManager.storeTokens(tokenData.access_token, tokenData.refresh_token)
+
+  return tokenData
 }
 
 export const logout = async () => {
@@ -120,12 +141,12 @@ export const isAuthenticated = async () => {
 export const getUserProfile = async () => {
   const { default: sessionManager } = await import('../utils/sessionManager.js')
   const response = await sessionManager.authenticatedFetch('/api/user/profile')
-  
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.message || 'Failed to get user profile')
   }
-  
+
   return response.json()
 }
 
@@ -138,12 +159,12 @@ export const updateUserProfile = async (profileData) => {
     },
     body: JSON.stringify(profileData)
   })
-  
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.message || 'Failed to update profile')
   }
-  
+
   return response.json()
 }
 
@@ -159,12 +180,12 @@ export const changePassword = async (currentPassword, newPassword) => {
       new_password: newPassword
     })
   })
-  
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.message || 'Failed to change password')
   }
-  
+
   return response.json()
 }
 
@@ -173,12 +194,12 @@ export const deleteAccount = async () => {
   const response = await sessionManager.authenticatedFetch('/api/user/account', {
     method: 'DELETE'
   })
-  
+
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.message || 'Failed to delete account')
   }
-  
+
   return response.json()
 }
 

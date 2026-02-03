@@ -24,6 +24,7 @@ from src.services.authentication_service import AuthenticationService
 from src.services.csrf_service import CSRFService
 from src.services.oauth_service import OAuthService
 from src.services.token_service import TokenService
+from src.utils.config import config
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -203,12 +204,46 @@ async def logout(
     return {"message": "Logout successful. Please remove tokens from client."}
 
 
+@router.get("/oauth/status")
+async def oauth_status():
+    """
+    Check OAuth configuration status.
+
+    Returns:
+        OAuth provider availability status
+
+    Raises:
+        HTTPException: 500 if configuration check fails
+    """
+    try:
+        google_configured = bool(
+            config.oauth.google_client_id
+            and config.oauth.google_client_secret
+            and config.oauth.google_redirect_uri
+        )
+
+        github_configured = bool(
+            config.oauth.github_client_id
+            and config.oauth.github_client_secret
+            and config.oauth.github_redirect_uri
+        )
+
+        return {"google_available": google_configured, "github_available": github_configured}
+    except Exception as e:
+        error_response = handle_service_error(e, "oauth_status")
+        raise error_response.to_http_exception() from e
+
+
 @router.get("/google/authorize")
 async def google_authorize(
+    state: str = Query(None, description="State parameter for CSRF protection"),
     oauth_service: OAuthService = Depends(get_oauth_service),
 ):
     """
     Initiate Google OAuth authorization flow.
+
+    Args:
+        state: Optional state parameter for CSRF protection
 
     Returns:
         Redirect to Google OAuth consent screen
@@ -217,7 +252,7 @@ async def google_authorize(
         HTTPException: 500 if Google OAuth is not configured
     """
     try:
-        authorization_url = oauth_service.get_google_authorization_url()
+        authorization_url = oauth_service.get_google_authorization_url(state)
         return RedirectResponse(url=authorization_url)
     except Exception as e:
         error_response = handle_service_error(e, "oauth_google")
@@ -254,10 +289,14 @@ async def google_callback(
 
 @router.get("/github/authorize")
 async def github_authorize(
+    state: str = Query(None, description="State parameter for CSRF protection"),
     oauth_service: OAuthService = Depends(get_oauth_service),
 ):
     """
     Initiate GitHub OAuth authorization flow.
+
+    Args:
+        state: Optional state parameter for CSRF protection
 
     Returns:
         Redirect to GitHub OAuth authorization endpoint
@@ -266,7 +305,7 @@ async def github_authorize(
         HTTPException: 500 if GitHub OAuth is not configured
     """
     try:
-        authorization_url = oauth_service.get_github_authorization_url()
+        authorization_url = oauth_service.get_github_authorization_url(state)
         return RedirectResponse(url=authorization_url)
     except Exception as e:
         error_response = handle_service_error(e, "oauth_github")
