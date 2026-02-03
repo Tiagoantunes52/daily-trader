@@ -13,7 +13,7 @@ class SessionManager {
     this.isRefreshing = false
     this.refreshPromise = null
     this.accessToken = null
-    this.refreshToken = null
+    this.refreshTokenValue = null
   }
 
   /**
@@ -44,11 +44,11 @@ class SessionManager {
   loadTokens() {
     try {
       this.accessToken = localStorage.getItem('access_token')
-      this.refreshToken = localStorage.getItem('refresh_token')
+      this.refreshTokenValue = localStorage.getItem('refresh_token')
     } catch (error) {
       console.error('Failed to load tokens from localStorage:', error)
       this.accessToken = null
-      this.refreshToken = null
+      this.refreshTokenValue = null
     }
   }
 
@@ -60,7 +60,7 @@ class SessionManager {
   storeTokens(accessToken, refreshToken) {
     try {
       this.accessToken = accessToken
-      this.refreshToken = refreshToken
+      this.refreshTokenValue = refreshToken
       localStorage.setItem('access_token', accessToken)
       localStorage.setItem('refresh_token', refreshToken)
     } catch (error) {
@@ -73,7 +73,7 @@ class SessionManager {
    */
   clearTokens() {
     this.accessToken = null
-    this.refreshToken = null
+    this.refreshTokenValue = null
     try {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
@@ -149,7 +149,7 @@ class SessionManager {
    */
   async _performTokenRefresh() {
     try {
-      if (!this.refreshToken) {
+      if (!this.refreshTokenValue) {
         console.warn('No refresh token available')
         this.handleAuthenticationFailure()
         return false
@@ -161,7 +161,7 @@ class SessionManager {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          refresh_token: this.refreshToken
+          refresh_token: this.refreshTokenValue
         })
       })
 

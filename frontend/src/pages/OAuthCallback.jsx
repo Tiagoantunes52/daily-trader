@@ -53,8 +53,9 @@ export default function OAuthCallback() {
           return
         }
 
-        const response = await fetch(`http://localhost:8000/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, {
-          method: 'GET'
+        const response = await fetch(`/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, {
+          method: 'GET',
+          credentials: 'include'
         })
 
         const data = await response.json()
