@@ -205,28 +205,7 @@ cd frontend
 npm run test:watch
 ```
 
-## API Endpoints
 
-### Tips
-
-- `GET /api/tips` - Get current tips with optional filtering
-  - Query params: `asset_type` (crypto/stock), `days` (1-90), `skip` (0+), `limit` (1-100)
-
-- `GET /api/tip-history` - Get historical tips
-  - Query params: `asset_type`, `days`, `skip`, `limit`
-
-### Market Data
-
-- `GET /api/market-data` - Get market data for symbols
-  - Query params: `symbols` (comma-separated)
-
-### User Management
-
-- `POST /api/users` - Create user profile
-- `GET /api/users/{user_id}` - Get user profile
-- `PUT /api/users/{user_id}/email` - Update email address
-- `PUT /api/users/{user_id}/delivery-times` - Update delivery times
-- `PUT /api/users/{user_id}/preferences` - Update asset preferences
 
 ## Architecture
 
@@ -246,67 +225,6 @@ Dashboard API (persist and serve)
 Web Dashboard (display to users)
 ```
 
-### Key Components
-
-**Market Data Aggregator**: Fetches real-time and historical data from multiple sources (CoinGecko, Alpha Vantage) with source attribution.
-
-**Analysis Engine**: Applies technical indicators (RSI, MACD, moving averages) to generate BUY/SELL/HOLD recommendations with confidence scores.
-
-**Email Service**: Formats tips into HTML/text emails and sends via SMTP with exponential backoff retry logic (5min, 15min, 30min).
-
-**Scheduler Service**: Triggers market analysis and email delivery at configured morning and evening times.
-
-**Dashboard API**: REST API for retrieving tips and market data with filtering, pagination, and historical queries.
-
-## Testing Strategy
-
-The project uses a dual testing approach:
-
-### Unit Tests
-
-Verify specific examples, edge cases, and error conditions for individual components.
-
-### Property-Based Tests
-
-Use Hypothesis framework to verify universal properties that should hold across all inputs:
-
-- **Property 1**: Exchange data includes source attribution
-- **Property 2**: Historical data is included with exchange data
-- **Property 3**: All tips include reasoning
-- **Property 4**: Tips are categorized by type
-- **Property 5**: Analysis references indicators
-- **Property 6**: Email delivery executes on schedule
-- **Property 7**: Failed emails are retried
-- **Property 8**: Updated email addresses are used
-
-All tests run with minimum 100 iterations for property-based tests.
-
-## Correctness Properties
-
-The system is designed around formal correctness properties:
-
-1. **Source Attribution**: Every piece of market data includes its source
-2. **Historical Context**: Market data always includes historical trends
-3. **Reasoning**: Every trading recommendation includes analysis reasoning
-4. **Categorization**: Tips are properly categorized by asset type
-5. **Technical Basis**: All recommendations reference technical indicators
-6. **Scheduled Delivery**: Emails are sent at configured times
-7. **Reliability**: Failed emails are retried with exponential backoff
-8. **User Preferences**: User email updates are immediately applied
-
-## Performance
-
-- **Email Delivery**: Typically completes within 5 seconds
-- **Market Data Fetch**: ~2-3 seconds for all sources
-- **Analysis Generation**: ~1-2 seconds for all assets
-- **Dashboard Response**: <500ms for API queries
-
-## Error Handling
-
-- **API Failures**: Gracefully falls back to cached data
-- **Email Failures**: Retries with exponential backoff (3 attempts)
-- **Invalid Data**: Logged and skipped without stopping delivery
-- **Configuration Errors**: Fail fast with clear error messages
 
 ## Dependency Management
 
@@ -360,15 +278,6 @@ uv sync --upgrade
 
 ## Deployment
 
-### Production Considerations
-
-1. Use environment-specific configuration
-2. Set up proper logging and monitoring
-3. Configure SMTP with production credentials
-4. Use a production database (PostgreSQL recommended)
-5. Set up scheduled backups
-6. Configure email rate limiting
-7. Monitor delivery success rates
 
 ### Docker Deployment
 
@@ -377,51 +286,8 @@ docker build -t daily-market-tips .
 docker run -p 8000:8000 -p 3000:3000 --env-file .env daily-market-tips
 ```
 
-## Troubleshooting
-
-### Email Not Sending
-
-- Check SMTP credentials in `.env`
-- Verify firewall allows SMTP port (587)
-- Check email service logs for errors
-- Verify recipient email is valid
-
-### Missing Market Data
-
-- Verify API keys are configured
-- Check API rate limits
-- Review aggregator logs for fetch errors
-- Ensure internet connectivity
-
-### Dashboard Not Loading
-
-- Verify backend API is running on port 8000
-- Check browser console for errors
-- Verify CORS configuration
-- Clear browser cache
-
-## Contributing
-
-1. Create a feature branch
-2. Write tests for new functionality
-3. Ensure all tests pass
-4. Submit a pull request
 
 ## License
 
 MIT License - see LICENSE file for details
 
-## Support
-
-For issues or questions, please open an issue on the project repository.
-
-## Changelog
-
-### Version 1.0.0
-
-- Initial release
-- Twice-daily email delivery
-- Web dashboard with filtering and pagination
-- Technical analysis with multiple indicators
-- User configuration management
-- Comprehensive test suite with property-based testing
