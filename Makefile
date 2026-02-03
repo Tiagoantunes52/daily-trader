@@ -14,6 +14,7 @@ help:
 	@echo "  build            Build the project"
 	@echo "  run              Run the application"
 	@echo "  frontend-install Install frontend dependencies"
+	@echo "  frontend-lint    Run frontend linting checks"
 	@echo "  frontend-dev     Start frontend dev server"
 	@echo "  frontend-build   Build frontend for production"
 	@echo "  frontend-test    Run frontend tests"
@@ -61,6 +62,9 @@ run:
 # Frontend commands
 frontend-install:
 	cd frontend && npm install
+
+frontend-lint:
+	cd frontend && npm run lint
 
 frontend-dev:
 	cd frontend && npm run dev

@@ -17,10 +17,6 @@ export default function App() {
   const path = window.location.pathname
   const isOAuthCallback = path.includes('/auth/google/callback') || path.includes('/auth/github/callback')
 
-  if (isOAuthCallback) {
-    return <OAuthCallback />
-  }
-
   useEffect(() => {
     // Initialize session manager and check authentication
     const initializeApp = async () => {
@@ -44,6 +40,11 @@ export default function App() {
       sessionManager.cleanup()
     }
   }, [])
+
+  // Handle OAuth callback routes - return early after hooks are called
+  if (isOAuthCallback) {
+    return <OAuthCallback />
+  }
 
   const handleLogout = async () => {
     try {
