@@ -27,7 +27,7 @@ classifiers = [
 dependencies = [
     "fastapi==0.104.1",
     "uvicorn==0.40.0",
-    "sqlalchemy==2.0.23",
+    "sqlalchemy==2.0.46",
     "python-dotenv==1.0.0",
     "requests==2.32.5",
     "apscheduler==3.10.4",
