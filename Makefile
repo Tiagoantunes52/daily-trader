@@ -11,6 +11,8 @@ help:
 	@echo "  test             Run tests in parallel"
 	@echo "  test-cov         Run tests with coverage in parallel"
 	@echo "  test-serial      Run tests serially (no parallelization)"
+	@echo "  test-slow        Show the 20 slowest tests"
+	@echo "  test-timeout     Run tests serially with timeout, stop on first failure"
 	@echo "  clean            Clean cache and build files"
 	@echo "  build            Build the project"
 	@echo "  run              Run the application"
@@ -45,6 +47,12 @@ test-cov:
 
 test-serial:
 	uv run pytest tests/ -v
+
+test-slow:
+	uv run pytest tests/ -v -n auto --durations=20
+
+test-timeout:
+	uv run pytest tests/ -v --timeout=30 --timeout-method=thread -x
 
 clean:
 	rm -rf .ruff_cache/
