@@ -253,7 +253,7 @@ async def google_authorize(
     """
     try:
         authorization_url = oauth_service.get_google_authorization_url(state)
-        return RedirectResponse(url=authorization_url)
+        return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
     except Exception as e:
         error_response = handle_service_error(e, "oauth_google")
         raise error_response.to_http_exception() from e
@@ -306,7 +306,7 @@ async def github_authorize(
     """
     try:
         authorization_url = oauth_service.get_github_authorization_url(state)
-        return RedirectResponse(url=authorization_url)
+        return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
     except Exception as e:
         error_response = handle_service_error(e, "oauth_github")
         raise error_response.to_http_exception() from e

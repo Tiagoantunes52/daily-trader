@@ -178,27 +178,46 @@ class OAuthService:
         if not code:
             raise ValueError("Authorization code cannot be empty")
 
+        print(f"DEBUG: Exchanging GitHub code: {code[:20]}...")
+        print(f"DEBUG: GitHub client ID: {config.oauth.github_client_id}")
+        print(f"DEBUG: GitHub redirect URI: {config.oauth.github_redirect_uri}")
+
         # Exchange code for tokens
         async with httpx.AsyncClient() as client:
+            token_data = {
+                "code": code,
+                "client_id": config.oauth.github_client_id,
+                "client_secret": config.oauth.github_client_secret,
+                "redirect_uri": config.oauth.github_redirect_uri,
+            }
+
+            print(f"DEBUG: Token request data: {token_data}")
+
             token_response = await client.post(
                 OAuthService.GITHUB_TOKEN_URL,
-                data={
-                    "code": code,
-                    "client_id": config.oauth.github_client_id,
-                    "client_secret": config.oauth.github_client_secret,
-                    "redirect_uri": config.oauth.github_redirect_uri,
-                },
+                data=token_data,
                 headers={"Accept": "application/json"},
             )
+
+            print(f"DEBUG: Token response status: {token_response.status_code}")
+            print(f"DEBUG: Token response headers: {dict(token_response.headers)}")
+            print(f"DEBUG: Token response text: {token_response.text}")
 
             if token_response.status_code != 200:
                 raise ValueError(f"Failed to exchange code: {token_response.text}")
 
             token_data = token_response.json()
+            print(f"DEBUG: Token response JSON: {token_data}")
+
             access_token = token_data.get("access_token")
 
             if not access_token:
-                raise ValueError("No access token received from GitHub")
+                error = token_data.get("error")
+                error_description = token_data.get("error_description")
+                print(f"DEBUG: No access token. Error: {error}, Description: {error_description}")
+                raise ValueError(
+                    f"No access token received from GitHub. Error: {error}, Description: {error_description}"
+                )
 
             # Get user info
             userinfo_response = await client.get(

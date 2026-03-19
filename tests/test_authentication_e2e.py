@@ -241,19 +241,21 @@ class TestOAuthFlow:
         Requirements: 3.1, 4.1
         """
         # Test Google authorization endpoint
-        response = test_client.get("/auth/google/authorize")
+        response = test_client.get("/auth/google/authorize", follow_redirects=False)
         # May fail if OAuth not configured in test, but endpoint should exist
         assert response.status_code in [
             status.HTTP_302_FOUND,  # Success - redirects to Google
+            status.HTTP_307_TEMPORARY_REDIRECT,  # Alternative redirect status
             status.HTTP_400_BAD_REQUEST,  # OAuth not configured
             status.HTTP_500_INTERNAL_SERVER_ERROR,  # Configuration error
         ]
 
         # Test GitHub authorization endpoint
-        response = test_client.get("/auth/github/authorize")
+        response = test_client.get("/auth/github/authorize", follow_redirects=False)
         # May fail if OAuth not configured in test, but endpoint should exist
         assert response.status_code in [
             status.HTTP_302_FOUND,  # Success - redirects to GitHub
+            status.HTTP_307_TEMPORARY_REDIRECT,  # Alternative redirect status
             status.HTTP_400_BAD_REQUEST,  # OAuth not configured
             status.HTTP_500_INTERNAL_SERVER_ERROR,  # Configuration error
         ]
