@@ -271,10 +271,10 @@ class MarketDataAggregator:
             prices = [price[1] for price in data.get("prices", [])]
             timestamps = [price[0] / 1000 for price in data.get("prices", [])]  # Convert to seconds
 
-            return HistoricalData(period=period, prices=prices, timestamps=timestamps)
+            return HistoricalData(period=period, prices=prices, timestamps=timestamps)  # type: ignore
         except Exception as e:
             print(f"Error fetching crypto historical data for {symbol}: {e}")
-            return HistoricalData(period=period, prices=[], timestamps=[])
+            return HistoricalData(period=period, prices=[], timestamps=[])  # type: ignore
 
     def _fetch_stock_historical(self, symbol: str, period: str = "7d") -> HistoricalData:
         """
@@ -301,7 +301,7 @@ class MarketDataAggregator:
 
             time_series_key = "Time Series (Daily)"
             if time_series_key not in data:
-                return HistoricalData(period=period, prices=[], timestamps=[])
+                return HistoricalData(period=period, prices=[], timestamps=[])  # type: ignore
 
             time_series = data[time_series_key]
 
@@ -322,7 +322,7 @@ class MarketDataAggregator:
                 timestamp = dt.strptime(date_str, "%Y-%m-%d").timestamp()
                 timestamps.append(timestamp)
 
-            return HistoricalData(period=period, prices=prices, timestamps=timestamps)
+            return HistoricalData(period=period, prices=prices, timestamps=timestamps)  # type: ignore
         except Exception as e:
             print(f"Error fetching stock historical data for {symbol}: {e}")
-            return HistoricalData(period=period, prices=[], timestamps=[])
+            return HistoricalData(period=period, prices=[], timestamps=[])  # type: ignore

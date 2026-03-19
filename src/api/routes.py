@@ -85,29 +85,29 @@ def _parse_tip_record(record: TipRecord) -> DashboardTip:
     indicators = []
     if record.indicators:
         try:
-            indicators = json.loads(record.indicators)
+            indicators = json.loads(str(record.indicators))
         except (json.JSONDecodeError, TypeError):
             indicators = []
 
     sources = []
     if record.sources:
         try:
-            sources_data = json.loads(record.sources)
+            sources_data = json.loads(str(record.sources))
             sources = [TipSource(name=s["name"], url=s["url"]) for s in sources_data]
         except (json.JSONDecodeError, TypeError, KeyError):
             sources = []
 
     return DashboardTip(
-        id=record.id,
-        symbol=record.symbol,
-        type=record.type,
-        recommendation=record.recommendation,
-        reasoning=record.reasoning,
-        confidence=record.confidence,
+        id=str(record.id),
+        symbol=str(record.symbol),
+        type=str(record.type),  # type: ignore
+        recommendation=str(record.recommendation),  # type: ignore
+        reasoning=str(record.reasoning),
+        confidence=int(record.confidence),  # type: ignore
         indicators=indicators,
         sources=sources,
-        generated_at=record.generated_at,
-        delivery_type=record.delivery_type,
+        generated_at=record.generated_at,  # type: ignore
+        delivery_type=str(record.delivery_type),  # type: ignore
     )
 
 
@@ -116,7 +116,7 @@ def _parse_market_data_record(record: MarketDataRecord) -> MarketData:
     historical_data = HistoricalData(period="24h")
     if record.historical_data:
         try:
-            hist_dict = json.loads(record.historical_data)
+            hist_dict = json.loads(str(record.historical_data))
             historical_data = HistoricalData(
                 period=hist_dict.get("period", "24h"),
                 prices=hist_dict.get("prices", []),
@@ -126,14 +126,16 @@ def _parse_market_data_record(record: MarketDataRecord) -> MarketData:
             pass
 
     return MarketData(
-        symbol=record.symbol,
-        type=record.type,
-        current_price=record.current_price,
-        price_change_24h=record.price_change_24h,
-        volume_24h=record.volume_24h,
+        symbol=str(record.symbol),
+        type=str(record.type),  # type: ignore
+        current_price=float(record.current_price),  # type: ignore
+        price_change_24h=float(record.price_change_24h),  # type: ignore
+        volume_24h=float(record.volume_24h),  # type: ignore
         historical_data=historical_data,
         source=DataSource(
-            name=record.source_name, url=record.source_url, fetched_at=record.fetched_at
+            name=str(record.source_name),
+            url=str(record.source_url),
+            fetched_at=record.fetched_at,  # type: ignore
         ),
     )
 

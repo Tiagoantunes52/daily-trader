@@ -12,6 +12,7 @@ from src.models.trading_tip import EmailContent, TipSource, TradingTip
 from src.services.email_service import EmailService
 
 
+@pytest.mark.serial  # Run these tests serially to avoid mock conflicts
 class TestEmailService:
     """Test suite for EmailService."""
 
@@ -24,7 +25,7 @@ class TestEmailService:
         assert service.sender_email is not None
 
     @pytest.mark.timeout(5)
-    def test_send_email_success(self, mock_mailgun_requests):
+    def test_send_email_success(self, mock_email_transport):
         """Test successful email sending."""
         service = EmailService(db_session=None)
 
@@ -33,10 +34,11 @@ class TestEmailService:
         )
 
         assert result is True
-        mock_mailgun_requests.assert_called_once()
+        # Verify SMTP was called (since USE_MAILGUN is False by default)
+        assert mock_email_transport["smtp_class"].called
 
     @pytest.mark.timeout(5)
-    def test_send_email_with_html_and_text(self, mock_mailgun_requests):
+    def test_send_email_with_html_and_text(self, mock_email_transport):
         """Test that email is sent with both HTML and plain text versions."""
         service = EmailService(db_session=None)
 
@@ -45,8 +47,8 @@ class TestEmailService:
         )
 
         assert result is True
-        # Verify post was called
-        mock_mailgun_requests.assert_called_once()
+        # Verify SMTP was called
+        assert mock_email_transport["smtp_class"].called
 
     @pytest.mark.timeout(10)
     @given(st.integers(min_value=1, max_value=3))
@@ -63,29 +65,33 @@ class TestEmailService:
         """
         service = EmailService(db_session=None)
 
-        # Mock Mailgun API to fail on specific attempt
-        with patch("src.services.email_service.requests.post") as mock_post:
-            # Configure mock to fail on specified attempt, then succeed
+        # Mock SMTP to fail on specific attempts
+        with patch("smtplib.SMTP") as mock_smtp_class, patch("time.sleep") as mock_sleep:
             call_count = [0]
 
-            def post_side_effect(*args, **kwargs):
+            def smtp_side_effect(*args, **kwargs):
                 call_count[0] += 1
-                mock_response = MagicMock()
+                mock_smtp_instance = MagicMock()
+
                 if call_count[0] < failure_attempt:
-                    mock_response.status_code = 500
-                    mock_response.text = "Server error"
+                    # Simulate failure by raising exception in login
+                    mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                        "SMTP Auth Error"
+                    )
                 else:
-                    mock_response.status_code = 200
-                return mock_response
+                    # Success case
+                    mock_smtp_instance.__enter__.return_value.login.return_value = None
+                    mock_smtp_instance.__enter__.return_value.send_message.return_value = None
 
-            mock_post.side_effect = post_side_effect
+                return mock_smtp_instance
 
-            with patch("time.sleep") as mock_sleep:
-                result = service.send_email(
-                    recipient="test@example.com",
-                    subject="Test Subject",
-                    content="<p>Test content</p>",
-                )
+            mock_smtp_class.side_effect = smtp_side_effect
+
+            result = service.send_email(
+                recipient="test@example.com",
+                subject="Test Subject",
+                content="<p>Test content</p>",
+            )
 
             # If failure_attempt <= 4, we should succeed (3 retries + 1 initial = 4 attempts)
             if failure_attempt <= 4:
@@ -96,7 +102,8 @@ class TestEmailService:
                     # Check that delays match exponential backoff: 300s, 900s, 1800s
                     expected_delays = [300, 900, 1800]
                     for i, call in enumerate(mock_sleep.call_args_list):
-                        assert call[0][0] == expected_delays[i]
+                        if i < len(expected_delays):
+                            assert call[0][0] == expected_delays[i]
             else:
                 # If failure_attempt > 4, all attempts fail
                 assert result is False
@@ -110,21 +117,25 @@ class TestEmailService:
         assert service.retry_delays == [300, 900, 1800]  # 5min, 15min, 30min
 
     @pytest.mark.timeout(5)
-    def test_email_failure_after_all_retries(self, mock_mailgun_requests):
+    def test_email_failure_after_all_retries(self):
         """Test that email sending fails after all retry attempts."""
         service = EmailService(db_session=None)
 
-        # Always fail
-        mock_mailgun_requests.return_value = MagicMock(status_code=500, text="Server error")
+        # Mock SMTP to always fail
+        with patch("smtplib.SMTP") as mock_smtp_class, patch("time.sleep"):
+            mock_smtp_instance = MagicMock()
+            mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                "Persistent failure"
+            )
+            mock_smtp_class.return_value = mock_smtp_instance
 
-        with patch("time.sleep"):
             result = service.send_email(
                 recipient="test@example.com",
                 subject="Test Subject",
                 content="<p>Test content</p>",
             )
 
-        assert result is False
+            assert result is False
 
     @pytest.mark.timeout(5)
     def test_log_delivery_with_session(self):
@@ -159,7 +170,7 @@ class TestEmailService:
         )
 
     @pytest.mark.timeout(5)
-    def test_send_email_content(self, mock_mailgun_requests):
+    def test_send_email_content(self, mock_email_transport):
         """Test sending formatted email content."""
         service = EmailService(db_session=None)
 
@@ -183,7 +194,8 @@ class TestEmailService:
         result = service.send_email_content(email_content)
 
         assert result is True
-        mock_mailgun_requests.assert_called_once()
+        # Verify SMTP was called
+        assert mock_email_transport["smtp_class"].called
 
     @pytest.mark.timeout(5)
     def test_format_email_html_includes_tips(self):

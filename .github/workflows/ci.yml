@@ -36,8 +36,8 @@ jobs:
       - name: Format check with ruff
         run: uv run ruff format --check src/ tests/
 
-      - name: Type check with mypy
-        run: uv run mypy src/ --ignore-missing-imports
+      - name: Type check with ty
+        run: uv run ty check src/
         continue-on-error: true
 
       - name: Run tests
@@ -52,7 +52,7 @@ jobs:
           MORNING_TIME: "06:00"
           EVENING_TIME: "18:00"
           DATABASE_URL: "sqlite:///./test_market_tips.db"
-        run: uv run pytest tests/ -v --cov=src --cov-report=xml --cov-report=term
+        run: uv run pytest tests/ -v -n auto --cov=src --cov-report=xml --cov-report=term
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5

@@ -108,13 +108,13 @@ class AuthenticationService:
             # OAuth-only user trying to login with password
             raise ValueError(generic_error)
 
-        is_valid = self.password_service.verify_password(password, user.password_hash)
+        is_valid = self.password_service.verify_password(password, str(user.password_hash))
         if not is_valid:
             raise ValueError(generic_error)
 
         # Generate tokens
-        access_token = self.token_service.create_access_token(user.id)
-        refresh_token = self.token_service.create_refresh_token(user.id)
+        access_token = self.token_service.create_access_token(int(user.id))  # type: ignore
+        refresh_token = self.token_service.create_refresh_token(int(user.id))  # type: ignore
 
         return TokenResponse(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
@@ -241,8 +241,8 @@ class AuthenticationService:
                 self.db_session.commit()
 
         # Generate JWT tokens
-        access_token = self.token_service.create_access_token(user.id)
-        refresh_token = self.token_service.create_refresh_token(user.id)
+        access_token = self.token_service.create_access_token(int(user.id))  # type: ignore
+        refresh_token = self.token_service.create_refresh_token(int(user.id))  # type: ignore
 
         return TokenResponse(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
@@ -344,8 +344,8 @@ class AuthenticationService:
                 self.db_session.commit()
 
         # Generate JWT tokens
-        access_token = self.token_service.create_access_token(user.id)
-        refresh_token = self.token_service.create_refresh_token(user.id)
+        access_token = self.token_service.create_access_token(int(user.id))  # type: ignore
+        refresh_token = self.token_service.create_refresh_token(int(user.id))  # type: ignore
 
         return TokenResponse(
             access_token=access_token, refresh_token=refresh_token, token_type="bearer"
@@ -372,7 +372,7 @@ class AuthenticationService:
         if oauth_connection.access_token:
             try:
                 result["access_token"] = self.encryption_service.decrypt(
-                    oauth_connection.access_token
+                    str(oauth_connection.access_token)
                 )
             except Exception as e:
                 raise ValueError(f"Failed to decrypt access token: {e}") from e
@@ -382,7 +382,7 @@ class AuthenticationService:
         if oauth_connection.refresh_token:
             try:
                 result["refresh_token"] = self.encryption_service.decrypt(
-                    oauth_connection.refresh_token
+                    str(oauth_connection.refresh_token)
                 )
             except Exception as e:
                 raise ValueError(f"Failed to decrypt refresh token: {e}") from e

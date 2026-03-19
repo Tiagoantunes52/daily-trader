@@ -282,7 +282,6 @@ class SchedulerService:
                     structured_logger.warning(
                         f"Error fetching users from database: {e!s}",
                         context={"trace_id": trace_id},
-                        exception=e,
                     )
 
             # If no users found, use default recipient for testing
@@ -312,9 +311,9 @@ class SchedulerService:
                     pass
 
                 email_content = EmailContent(
-                    recipient=user.email,
+                    recipient=str(user.email),
                     subject=f"{delivery_type.capitalize()} Market Tips - {datetime.now().strftime('%Y-%m-%d')}",
-                    delivery_type=delivery_type,
+                    delivery_type=delivery_type,  # type: ignore
                     tips=all_tips,
                     market_data=all_market_data,
                     generated_at=datetime.now(),

@@ -8,8 +8,11 @@ help:
 	@echo "  lint             Run linting checks"
 	@echo "  format           Format code"
 	@echo "  typecheck        Run type checking"
-	@echo "  test             Run tests"
-	@echo "  test-cov         Run tests with coverage"
+	@echo "  test             Run tests (parallel + serial)"
+	@echo "  test-cov         Run tests with coverage (parallel + serial)"
+	@echo "  test-serial      Run tests serially (no parallelization)"
+	@echo "  test-slow        Show the 20 slowest tests"
+	@echo "  test-timeout     Run tests serially with timeout, stop on first failure"
 	@echo "  clean            Clean cache and build files"
 	@echo "  build            Build the project"
 	@echo "  run              Run the application"
@@ -34,13 +37,22 @@ format:
 	uv run ruff format src/ tests/
 
 typecheck:
-	uv run mypy src/ --ignore-missing-imports
+	uv run ty check src/
 
 test:
-	uv run pytest tests/ -v
+	uv run pytest tests/ -v -n auto -m "not serial" && uv run pytest tests/ -v -m "serial"
 
 test-cov:
-	uv run pytest tests/ -v --cov=src
+	uv run pytest tests/ -v -n auto -m "not serial" --cov=src --cov-append && uv run pytest tests/ -v -m "serial" --cov=src --cov-append
+
+test-serial:
+	uv run pytest tests/ -v
+
+test-slow:
+	uv run pytest tests/ -v -n auto --durations=20
+
+test-timeout:
+	uv run pytest tests/ -v --timeout=30 --timeout-method=thread -x
 
 clean:
 	rm -rf .ruff_cache/

@@ -10,8 +10,7 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      // Only proxy auth endpoints that should go to backend
-      // Do NOT proxy callback URLs - they should be handled by React
+      // Proxy specific auth endpoints to backend, but NOT the callback URLs
       '/auth/login': {
         target: 'http://localhost:8000',
         changeOrigin: true,
@@ -39,10 +38,32 @@ export default defineConfig({
       '/auth/github/authorize': {
         target: 'http://localhost:8000',
         changeOrigin: true,
+      },
+      // Proxy callback API calls (when frontend makes fetch requests)
+      '/auth/google/callback': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        // Only proxy if it's an API call (has specific headers or query params)
+        bypass: function (req, res, options) {
+          // If it's a browser navigation (no fetch headers), let React handle it
+          if (!req.headers['content-type'] && !req.headers['accept']?.includes('application/json')) {
+            return '/index.html'
+          }
+        }
+      },
+      '/auth/github/callback': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        // Only proxy if it's an API call (has specific headers or query params)
+        bypass: function (req, res, options) {
+          // If it's a browser navigation (no fetch headers), let React handle it
+          if (!req.headers['content-type'] && !req.headers['accept']?.includes('application/json')) {
+            return '/index.html'
+          }
+        }
       }
-      // Note: /auth/google/callback and /auth/github/callback are NOT proxied
-      // They should be handled by the React app routing
-      // The OAuthCallback component calls the backend directly
-    }
+    },
+    // Enable client-side routing fallback
+    historyApiFallback: true
   }
 })

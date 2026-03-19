@@ -92,11 +92,11 @@ async def register(
 
         # Return user response without OAuth providers (new user)
         return UserResponse(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-            created_at=user.created_at,
-            is_email_verified=user.is_email_verified,
+            id=int(user.id),  # type: ignore
+            email=str(user.email),
+            name=str(user.name),
+            created_at=user.created_at,  # type: ignore
+            is_email_verified=bool(user.is_email_verified),
             oauth_providers=[],
         )
     except Exception as e:
@@ -253,7 +253,7 @@ async def google_authorize(
     """
     try:
         authorization_url = oauth_service.get_google_authorization_url(state)
-        return RedirectResponse(url=authorization_url)
+        return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
     except Exception as e:
         error_response = handle_service_error(e, "oauth_google")
         raise error_response.to_http_exception() from e
@@ -306,7 +306,7 @@ async def github_authorize(
     """
     try:
         authorization_url = oauth_service.get_github_authorization_url(state)
-        return RedirectResponse(url=authorization_url)
+        return RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
     except Exception as e:
         error_response = handle_service_error(e, "oauth_github")
         raise error_response.to_http_exception() from e

@@ -63,7 +63,7 @@ class UserService:
 
         return user
 
-    def get_user_by_email(self, email: str) -> UserProfile:
+    def get_user_by_email(self, email: str) -> UserProfile | None:
         """
         Retrieve user profile by email address.
 
@@ -78,7 +78,7 @@ class UserService:
 
         return self.db_session.query(UserProfile).filter(UserProfile.email == email).first()
 
-    def get_user_by_id(self, user_id: str) -> UserProfile:
+    def get_user_by_id(self, user_id: str) -> UserProfile | None:
         """
         Retrieve user profile by ID.
 
@@ -218,7 +218,7 @@ class UserService:
             return []
 
         try:
-            return json.loads(user.asset_preferences)
+            return json.loads(str(user.asset_preferences))
         except (json.JSONDecodeError, TypeError):
             return []
 
