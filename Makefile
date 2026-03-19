@@ -8,8 +8,8 @@ help:
 	@echo "  lint             Run linting checks"
 	@echo "  format           Format code"
 	@echo "  typecheck        Run type checking"
-	@echo "  test             Run tests in parallel"
-	@echo "  test-cov         Run tests with coverage in parallel"
+	@echo "  test             Run tests (parallel + serial)"
+	@echo "  test-cov         Run tests with coverage (parallel + serial)"
 	@echo "  test-serial      Run tests serially (no parallelization)"
 	@echo "  test-slow        Show the 20 slowest tests"
 	@echo "  test-timeout     Run tests serially with timeout, stop on first failure"
@@ -40,10 +40,10 @@ typecheck:
 	uv run ty check src/
 
 test:
-	uv run pytest tests/ -v -n auto
+	uv run pytest tests/ -v -n auto -m "not serial" && uv run pytest tests/ -v -m "serial"
 
 test-cov:
-	uv run pytest tests/ -v -n auto --cov=src
+	uv run pytest tests/ -v -n auto -m "not serial" --cov=src --cov-append && uv run pytest tests/ -v -m "serial" --cov=src --cov-append
 
 test-serial:
 	uv run pytest tests/ -v

@@ -12,6 +12,7 @@ from src.models.trading_tip import EmailContent, TipSource, TradingTip
 from src.services.email_service import EmailService
 
 
+@pytest.mark.serial  # Run these tests serially to avoid mock conflicts
 class TestEmailService:
     """Test suite for EmailService."""
 

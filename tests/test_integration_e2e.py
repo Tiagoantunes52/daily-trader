@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -421,6 +422,7 @@ class TestErrorScenarios:
         assert scheduler.scheduler is not None
 
 
+@pytest.mark.serial  # Run these tests serially to avoid mock conflicts
 class TestRetryLogic:
     """Test retry logic for failed operations."""
 
