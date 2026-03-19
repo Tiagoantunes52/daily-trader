@@ -62,11 +62,11 @@ async def get_profile(
     oauth_providers = [conn.provider for conn in current_user.oauth_connections]
 
     return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        name=current_user.name,
-        created_at=current_user.created_at,
-        is_email_verified=current_user.is_email_verified,
+        id=int(current_user.id),  # type: ignore
+        email=str(current_user.email),
+        name=str(current_user.name),
+        created_at=current_user.created_at,  # type: ignore
+        is_email_verified=bool(current_user.is_email_verified),
         oauth_providers=oauth_providers,
     )
 
@@ -101,17 +101,17 @@ async def update_profile(
             update_data["email"] = profile_data.email
 
         # Update user profile
-        updated_user = user_service.update_user(current_user.id, **update_data)
+        updated_user = user_service.update_user(int(current_user.id), **update_data)  # type: ignore
 
         # Get OAuth providers for response
         oauth_providers = [conn.provider for conn in updated_user.oauth_connections]
 
         return UserResponse(
-            id=updated_user.id,
-            email=updated_user.email,
-            name=updated_user.name,
-            created_at=updated_user.created_at,
-            is_email_verified=updated_user.is_email_verified,
+            id=int(updated_user.id),  # type: ignore
+            email=str(updated_user.email),
+            name=str(updated_user.name),
+            created_at=updated_user.created_at,  # type: ignore
+            is_email_verified=bool(updated_user.is_email_verified),
             oauth_providers=oauth_providers,
         )
     except Exception as e:
@@ -149,7 +149,7 @@ async def change_password(
 
         # Verify current password
         if not password_service.verify_password(
-            password_data.current_password, current_user.password_hash
+            password_data.current_password, str(current_user.password_hash)
         ):
             raise ValueError("Current password is incorrect")
 
@@ -164,7 +164,7 @@ async def change_password(
         new_password_hash = password_service.hash_password(password_data.new_password)
 
         # Update password in database
-        user_service.update_user(current_user.id, password_hash=new_password_hash)
+        user_service.update_user(int(current_user.id), password_hash=new_password_hash)  # type: ignore
 
         return {"message": "Password changed successfully"}
 
@@ -244,7 +244,7 @@ async def delete_account(
     """
     try:
         # Delete user account (cascades to OAuth connections)
-        success = user_service.delete_user(current_user.id)
+        success = user_service.delete_user(int(current_user.id))  # type: ignore
 
         if not success:
             raise ValueError("Failed to delete account")

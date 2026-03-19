@@ -34,7 +34,7 @@ format:
 	uv run ruff format src/ tests/
 
 typecheck:
-	uv run mypy src/ --ignore-missing-imports
+	uv run ty check src/
 
 test:
 	uv run pytest tests/ -v

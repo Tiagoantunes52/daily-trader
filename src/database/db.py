@@ -1,7 +1,7 @@
 """Database connection and session management."""
 
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from src.database.models import Base
 from src.utils.config import config
@@ -22,7 +22,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 
-def get_db() -> Session:
+def get_db():
     """Get database session for dependency injection."""
     db = SessionLocal()
     try:

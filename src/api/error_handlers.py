@@ -90,7 +90,7 @@ class ErrorResponse:
         )
 
 
-def create_validation_error_response(errors: list[dict[str, Any]]) -> ErrorResponse:
+def create_validation_error_response(errors: list[Any] | Any) -> ErrorResponse:
     """
     Create standardized validation error response from Pydantic validation errors.
 

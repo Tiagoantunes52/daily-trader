@@ -19,7 +19,7 @@ class EmailConfig:
     mailgun_api_key: str | None = None
     smtp_server: str | None = None
     smtp_port: int | None = None
-    retry_delays: list[int] = None  # Delays in seconds for exponential backoff
+    retry_delays: list[int] | None = None  # Delays in seconds for exponential backoff
     use_mailgun: bool = False
 
     def __post_init__(self):
