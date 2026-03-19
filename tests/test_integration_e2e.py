@@ -428,21 +428,27 @@ class TestRetryLogic:
         """Test that email retry uses exponential backoff delays."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
+        with patch("smtplib.SMTP") as mock_smtp_class:
             # Fail twice, then succeed
             call_count = [0]
 
-            def post_side_effect(*args, **kwargs):
+            def smtp_side_effect(*args, **kwargs):
                 call_count[0] += 1
-                mock_response = MagicMock()
-                if call_count[0] < 3:
-                    mock_response.status_code = 500
-                    mock_response.text = "Server error"
-                else:
-                    mock_response.status_code = 200
-                return mock_response
+                mock_smtp_instance = MagicMock()
 
-            mock_post.side_effect = post_side_effect
+                if call_count[0] < 3:
+                    # Simulate failure by raising exception in login
+                    mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                        "SMTP Auth Error"
+                    )
+                else:
+                    # Success case
+                    mock_smtp_instance.__enter__.return_value.login.return_value = None
+                    mock_smtp_instance.__enter__.return_value.send_message.return_value = None
+
+                return mock_smtp_instance
+
+            mock_smtp_class.side_effect = smtp_side_effect
 
             with patch("time.sleep") as mock_sleep:
                 result = email_service.send_email(
@@ -462,12 +468,13 @@ class TestRetryLogic:
         """Test that email fails after maximum retry attempts."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
+        with patch("smtplib.SMTP") as mock_smtp_class:
             # Always fail
-            mock_response = MagicMock()
-            mock_response.status_code = 500
-            mock_response.text = "Server error"
-            mock_post.return_value = mock_response
+            mock_smtp_instance = MagicMock()
+            mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                "Persistent failure"
+            )
+            mock_smtp_class.return_value = mock_smtp_instance
 
             with patch("time.sleep"):
                 result = email_service.send_email(
@@ -481,21 +488,27 @@ class TestRetryLogic:
         """Test that delivery log records all retry attempts."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
+        with patch("smtplib.SMTP") as mock_smtp_class:
             # Fail once, then succeed
             call_count = [0]
 
-            def post_side_effect(*args, **kwargs):
+            def smtp_side_effect(*args, **kwargs):
                 call_count[0] += 1
-                mock_response = MagicMock()
-                if call_count[0] < 2:
-                    mock_response.status_code = 500
-                    mock_response.text = "Server error"
-                else:
-                    mock_response.status_code = 200
-                return mock_response
+                mock_smtp_instance = MagicMock()
 
-            mock_post.side_effect = post_side_effect
+                if call_count[0] < 2:
+                    # Simulate failure by raising exception in login
+                    mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                        "SMTP Auth Error"
+                    )
+                else:
+                    # Success case
+                    mock_smtp_instance.__enter__.return_value.login.return_value = None
+                    mock_smtp_instance.__enter__.return_value.send_message.return_value = None
+
+                return mock_smtp_instance
+
+            mock_smtp_class.side_effect = smtp_side_effect
 
             with patch("time.sleep"):
                 result = email_service.send_email(

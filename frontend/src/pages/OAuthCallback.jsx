@@ -40,17 +40,12 @@ export default function OAuthCallback() {
         const storedState = sessionStorage.getItem('oauth_state')
         console.log('State verification:', { received: state, stored: storedState })
 
-        // Temporarily skip state verification for debugging
-        // TODO: Re-enable state verification after debugging
-        /*
         if (!storedState || storedState !== state) {
           console.error('State mismatch - possible CSRF attack')
           setStatus('error')
           setMessage('Invalid state parameter. Please try logging in again.')
           return
         }
-        */
-        console.log('State verification skipped for debugging')
 
         // Clear stored state
         sessionStorage.removeItem('oauth_state')
