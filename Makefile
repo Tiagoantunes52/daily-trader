@@ -8,8 +8,9 @@ help:
 	@echo "  lint             Run linting checks"
 	@echo "  format           Format code"
 	@echo "  typecheck        Run type checking"
-	@echo "  test             Run tests"
-	@echo "  test-cov         Run tests with coverage"
+	@echo "  test             Run tests in parallel"
+	@echo "  test-cov         Run tests with coverage in parallel"
+	@echo "  test-serial      Run tests serially (no parallelization)"
 	@echo "  clean            Clean cache and build files"
 	@echo "  build            Build the project"
 	@echo "  run              Run the application"
@@ -37,10 +38,13 @@ typecheck:
 	uv run ty check src/
 
 test:
-	uv run pytest tests/ -v
+	uv run pytest tests/ -v -n auto
 
 test-cov:
-	uv run pytest tests/ -v --cov=src
+	uv run pytest tests/ -v -n auto --cov=src
+
+test-serial:
+	uv run pytest tests/ -v
 
 clean:
 	rm -rf .ruff_cache/
