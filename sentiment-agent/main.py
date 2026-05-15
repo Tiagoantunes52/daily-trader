@@ -11,9 +11,13 @@ import json
 import logging
 import os
 import time
+from pathlib import Path
 
 import httpx
 import schedule
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).parent / ".env")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("market-sentiment")

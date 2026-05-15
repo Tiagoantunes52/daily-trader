@@ -3,7 +3,7 @@ name: market-sentiment
 description: Continuously crawls news via Brave Search, scores sentiment with the local LLM, and pushes results to the Daily Market Tips API.
 version: 1.0.0
 entry: main.py
-schedule: "*/30 * * * *"
+mode: daemon
 ---
 
 # Market Sentiment Skill

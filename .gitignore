@@ -76,4 +76,4 @@ Thumbs.db
 # mypy
 .mypy_cache/
 .dmypy.json
-dmypy.json
+dmypy.jsonsentiment-agent/.env
