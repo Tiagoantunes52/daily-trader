@@ -8,6 +8,7 @@ from sqlalchemy.orm import declarative_base, relationship
 Base = declarative_base()
 
 
+
 class TipRecord(Base):
     """Database model for storing trading tips."""
 
@@ -56,25 +57,6 @@ class DeliveryLog(Base):
     attempted_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 
-class UserProfile(Base):
-    """Database model for user configuration."""
-
-    __tablename__ = "user_profiles"
-
-    id = Column(String, primary_key=True)
-    email = Column(String, nullable=False, unique=True, index=True)
-    morning_time = Column(String, nullable=True)  # HH:MM format
-    evening_time = Column(String, nullable=True)  # HH:MM format
-    asset_preferences = Column(String, nullable=True)  # JSON string
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
-    updated_at = Column(
-        DateTime,
-        nullable=False,
-        default=lambda: datetime.now(UTC),
-        onupdate=lambda: datetime.now(UTC),
-    )
-
-
 class User(Base):
     """Database model for user authentication."""
 
@@ -82,7 +64,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
-    password_hash = Column(String(255), nullable=True)  # Nullable for OAuth-only users
+    password_hash = Column(String(255), nullable=True)
     name = Column(String(255), nullable=False)
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
     updated_at = Column(
@@ -92,10 +74,27 @@ class User(Base):
         onupdate=lambda: datetime.now(UTC),
     )
     is_email_verified = Column(Boolean, default=False)
+    morning_time = Column(String(5), nullable=True)   # HH:MM format
+    evening_time = Column(String(5), nullable=True)   # HH:MM format
+    asset_preferences = Column(Text, nullable=True)   # JSON string
 
     oauth_connections = relationship(
         "OAuthConnection", back_populates="user", cascade="all, delete-orphan"
     )
+
+
+class SentimentRecord(Base):
+    """Sentiment analysis result for a symbol from news crawling."""
+
+    __tablename__ = "sentiment"
+
+    id = Column(String, primary_key=True)
+    symbol = Column(String, nullable=False, index=True)
+    score = Column(Float, nullable=False)  # -1.0 (bearish) to 1.0 (bullish)
+    label = Column(String, nullable=False)  # e.g. "mildly bullish"
+    key_theme = Column(Text, nullable=True)
+    headline_count = Column(Integer, nullable=False, default=0)
+    analyzed_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 
 class OAuthConnection(Base):

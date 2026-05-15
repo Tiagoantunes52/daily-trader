@@ -13,28 +13,25 @@ from src.database.models import MarketDataRecord, TipRecord
 
 
 @pytest.fixture
-def authenticated_user(test_client: TestClient):
+def authenticated_user(test_client: TestClient, test_session: Session):
     """Create and authenticate a test user, return user data and tokens."""
-    # Register a user
-    user_data = {
-        "email": "testuser@example.com",
-        "password": "SecurePass123!",
-        "name": "Test User",
-    }
-    register_response = test_client.post("/auth/register", json=user_data)
-    assert register_response.status_code == status.HTTP_201_CREATED
-    user_info = register_response.json()
+    from src.services.auth_user_service import AuthUserService
+    from src.services.token_service import TokenService
 
-    # Login to get tokens
-    login_data = {"email": user_data["email"], "password": user_data["password"]}
-    login_response = test_client.post("/auth/login", json=login_data)
-    assert login_response.status_code == status.HTTP_200_OK
-    tokens = login_response.json()
+    user_service = AuthUserService(db_session=test_session)
+    user = user_service.create_user(
+        email="testuser@example.com",
+        password_hash="hashed_pw",
+        name="Test User",
+    )
+    token_service = TokenService()
+    access_token = token_service.create_access_token(user.id)
+    refresh_token = token_service.create_refresh_token(user.id)
 
     return {
-        "user": user_info,
-        "tokens": tokens,
-        "headers": {"Authorization": f"Bearer {tokens['access_token']}"},
+        "user": {"id": user.id, "email": user.email, "name": user.name},
+        "tokens": {"access_token": access_token, "refresh_token": refresh_token},
+        "headers": {"Authorization": f"Bearer {access_token}"},
     }
 
 

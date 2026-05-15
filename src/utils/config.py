@@ -65,6 +65,14 @@ class DatabaseConfig:
 
 
 @dataclass
+class AgentConfig:
+    """Configuration for machine-to-machine agent access."""
+
+    sentiment_api_key: str | None = None
+    port: int = 8001
+
+
+@dataclass
 class OAuthConfig:
     """OAuth configuration."""
 
@@ -119,14 +127,19 @@ class Config:
         )
 
         self.api = APIConfig(
-            crypto_api_key=os.getenv("CRYPTO_API_KEY"),
-            stock_api_key=os.getenv("STOCK_API_KEY"),
+            crypto_api_key=os.getenv("CRYPTO_API_KEY") or None,
+            stock_api_key=os.getenv("STOCK_API_KEY") or None,
             cache_ttl=int(os.getenv("CACHE_TTL", "300")),
         )
 
         self.database = DatabaseConfig(
             database_url=os.getenv("DATABASE_URL", "sqlite:///./market_tips.db"),
             echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
+        )
+
+        self.agent = AgentConfig(
+            sentiment_api_key=os.getenv("SENTIMENT_API_KEY") or None,
+            port=int(os.getenv("PORT", "8001")),
         )
 
         self.jwt = JWTConfig(

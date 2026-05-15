@@ -1,12 +1,10 @@
 """Authentication API routes for registration, login, and token management."""
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from src.api.dependencies import (
-    check_login_rate_limit,
-    check_register_rate_limit,
     get_csrf_service,
     get_current_user,
 )
@@ -16,8 +14,6 @@ from src.database.models import User
 from src.models.auth_schemas import (
     RefreshTokenRequest,
     TokenResponse,
-    UserLoginRequest,
-    UserRegisterRequest,
     UserResponse,
 )
 from src.services.authentication_service import AuthenticationService
@@ -60,79 +56,6 @@ def get_oauth_service() -> OAuthService:
         OAuthService instance
     """
     return OAuthService()
-
-
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(
-    user_data: UserRegisterRequest,
-    request: Request,
-    auth_service: AuthenticationService = Depends(get_auth_service),
-):
-    """
-    Register a new user with email and password.
-
-    Args:
-        user_data: User registration data (email, password, name)
-        request: FastAPI request object
-        auth_service: Authentication service instance
-
-    Returns:
-        Created user profile
-
-    Raises:
-        HTTPException: 400 for validation errors, 409 for duplicate email, 429 for rate limit exceeded
-    """
-    # Check rate limit first
-    check_register_rate_limit(request)
-
-    try:
-        user = auth_service.register(
-            email=user_data.email, password=user_data.password, name=user_data.name
-        )
-
-        # Return user response without OAuth providers (new user)
-        return UserResponse(
-            id=int(user.id),  # type: ignore
-            email=str(user.email),
-            name=str(user.name),
-            created_at=user.created_at,  # type: ignore
-            is_email_verified=bool(user.is_email_verified),
-            oauth_providers=[],
-        )
-    except Exception as e:
-        error_response = handle_service_error(e, "registration")
-        raise error_response.to_http_exception() from e
-
-
-@router.post("/login", response_model=TokenResponse)
-async def login(
-    credentials: UserLoginRequest,
-    request: Request,
-    auth_service: AuthenticationService = Depends(get_auth_service),
-):
-    """
-    Authenticate user with email and password.
-
-    Args:
-        credentials: User login credentials (email, password)
-        request: FastAPI request object
-        auth_service: Authentication service instance
-
-    Returns:
-        JWT access and refresh tokens
-
-    Raises:
-        HTTPException: 401 for invalid credentials, 400 for validation errors, 429 for rate limit exceeded
-    """
-    # Check rate limit first
-    check_login_rate_limit(request)
-
-    try:
-        token_response = auth_service.login(email=credentials.email, password=credentials.password)
-        return token_response
-    except Exception as e:
-        error_response = handle_service_error(e, "login")
-        raise error_response.to_http_exception() from e
 
 
 @router.post("/refresh", response_model=TokenResponse)

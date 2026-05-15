@@ -32,16 +32,6 @@ def get_scheduler_service():
     return _scheduler_service
 
 
-# Pydantic models for user endpoints
-class UserProfileCreate(BaseModel):
-    """Request model for creating a user profile."""
-
-    email: str
-    morning_time: str | None = None
-    evening_time: str | None = None
-    asset_preferences: list[str] | None = None
-
-
 class UserProfileUpdate(BaseModel):
     """Request model for updating user profile."""
 
@@ -52,9 +42,9 @@ class UserProfileUpdate(BaseModel):
 
 
 class UserProfileResponse(BaseModel):
-    """Response model for user profile."""
+    """Response model for user preferences."""
 
-    id: str
+    id: int
     email: str
     morning_time: str | None
     evening_time: str | None
@@ -329,37 +319,7 @@ async def get_tip_history(
     return {"tips": dashboard_tips, "total": total, "skip": skip, "limit": limit, "days": days}
 
 
-# User Configuration Management Endpoints
-
-
-@router.post("/users", response_model=UserProfileResponse)
-async def create_user(
-    user_data: UserProfileCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    Create a new user profile.
-
-    Args:
-        user_data: User profile data
-        db: Database session
-
-    Returns:
-        Created user profile
-    """
-    service = UserService(db_session=db)
-
-    try:
-        user = service.create_user(
-            email=user_data.email,
-            morning_time=user_data.morning_time,
-            evening_time=user_data.evening_time,
-            asset_preferences=user_data.asset_preferences,
-        )
-        return user
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+# User Preference Endpoints
 
 
 @router.get("/users/{user_id}", response_model=UserProfileResponse)
@@ -379,14 +339,18 @@ async def get_user(
     Returns:
         User profile
     """
-    # Ensure users can only access their own profile
-    if str(current_user.id) != user_id:
+    try:
+        uid = int(user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if current_user.id != uid:
         raise HTTPException(
             status_code=403, detail="Access denied: can only access your own profile"
         )
 
     service = UserService(db_session=db)
-    user = service.get_user_by_id(user_id)
+    user = service.get_user_by_id(uid)
 
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -445,8 +409,12 @@ async def update_user(
     Returns:
         Updated user profile
     """
-    # Ensure users can only update their own profile
-    if str(current_user.id) != user_id:
+    try:
+        uid = int(user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if current_user.id != uid:
         raise HTTPException(
             status_code=403, detail="Access denied: can only update your own profile"
         )
@@ -454,24 +422,21 @@ async def update_user(
     service = UserService(db_session=db)
 
     try:
-        user = service.get_user_by_id(user_id)
+        user = service.get_user_by_id(uid)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Update email if provided
         if user_data.email and user_data.email != user.email:
-            user = service.update_email(user_id, user_data.email)
+            user = service.update_email(uid, user_data.email)
 
-        # Update delivery times if provided
-        if user_data.morning_time or user_data.evening_time:
+        if user_data.morning_time is not None or user_data.evening_time is not None:
             user = service.update_delivery_times(
-                user_id, morning_time=user_data.morning_time, evening_time=user_data.evening_time
+                uid, morning_time=user_data.morning_time, evening_time=user_data.evening_time
             )
 
-        # Update asset preferences if provided
-        if user_data.asset_preferences:
+        if user_data.asset_preferences is not None:
             user = service.update_asset_preferences(
-                user_id, asset_preferences=user_data.asset_preferences
+                uid, asset_preferences=user_data.asset_preferences
             )
 
         return user
@@ -496,8 +461,12 @@ async def delete_user(
     Returns:
         Deletion status
     """
-    # Ensure users can only delete their own profile
-    if str(current_user.id) != user_id:
+    try:
+        uid = int(user_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if current_user.id != uid:
         raise HTTPException(
             status_code=403, detail="Access denied: can only delete your own profile"
         )
@@ -505,7 +474,7 @@ async def delete_user(
     service = UserService(db_session=db)
 
     try:
-        success = service.delete_user(user_id)
+        success = service.delete_user(uid)
         if not success:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -518,7 +487,7 @@ async def delete_user(
 
 
 @router.get("/debug/status")
-async def debug_status():
+async def debug_status(current_user: User = Depends(get_current_user)):
     """
     Get current scheduler status and next delivery times.
 
@@ -554,7 +523,10 @@ async def debug_status():
 
 
 @router.get("/debug/execution-history")
-async def debug_execution_history(limit: int = Query(50, ge=1, le=500)):
+async def debug_execution_history(
+    limit: int = Query(50, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get recent delivery execution attempts.
 
@@ -602,7 +574,10 @@ async def debug_execution_history(limit: int = Query(50, ge=1, le=500)):
 
 
 @router.get("/debug/fetch-history")
-async def debug_fetch_history(limit: int = Query(50, ge=1, le=500)):
+async def debug_fetch_history(
+    limit: int = Query(50, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get recent market data fetch attempts.
 
@@ -643,7 +618,10 @@ async def debug_fetch_history(limit: int = Query(50, ge=1, le=500)):
 
 
 @router.get("/debug/errors")
-async def debug_errors(limit: int = Query(50, ge=1, le=500)):
+async def debug_errors(
+    limit: int = Query(50, ge=1, le=500),
+    current_user: User = Depends(get_current_user),
+):
     """
     Get recent error events.
 
@@ -677,7 +655,7 @@ async def debug_errors(limit: int = Query(50, ge=1, le=500)):
 
 
 @router.get("/debug/metrics")
-async def debug_metrics():
+async def debug_metrics(current_user: User = Depends(get_current_user)):
     """
     Get aggregated system metrics.
 
@@ -761,7 +739,7 @@ async def debug_metrics():
 
 
 @router.get("/debug/trace/{trace_id}")
-async def debug_trace(trace_id: str):
+async def debug_trace(trace_id: str, current_user: User = Depends(get_current_user)):
     """
     Get complete trace for a specific operation.
 

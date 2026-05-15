@@ -13,32 +13,31 @@ from src.database.models import DeliveryLog, MarketDataRecord, TipRecord
 from src.models.market_data import DataSource, HistoricalData, MarketData
 from src.models.trading_tip import EmailContent, TipSource, TradingTip
 from src.services.analysis_engine import AnalysisEngine
+from src.services.auth_user_service import AuthUserService
 from src.services.email_service import EmailService
 from src.services.scheduler_service import SchedulerService
+from src.services.token_service import TokenService
+
+_user_counter = 0
 
 
-def create_authenticated_user(test_client: TestClient):
-    """Create and authenticate a test user, return user data and tokens."""
-    # Register a user
-    user_data = {
-        "email": "testuser@example.com",
-        "password": "SecurePass123!",
-        "name": "Test User",
-    }
-    register_response = test_client.post("/auth/register", json=user_data)
-    assert register_response.status_code == status.HTTP_201_CREATED
-    user_info = register_response.json()
+def create_authenticated_user(test_client: TestClient, test_session: Session):
+    """Create and authenticate a test user using the test database session."""
+    global _user_counter
+    _user_counter += 1
 
-    # Login to get tokens
-    login_data = {"email": user_data["email"], "password": user_data["password"]}
-    login_response = test_client.post("/auth/login", json=login_data)
-    assert login_response.status_code == status.HTTP_200_OK
-    tokens = login_response.json()
+    user_service = AuthUserService(db_session=test_session)
+    user = user_service.create_user(
+        email=f"testuser{_user_counter}@example.com",
+        password_hash="hashed_pw",
+        name="Test User",
+    )
+    token_service = TokenService()
+    access_token = token_service.create_access_token(user.id)
 
     return {
-        "user": user_info,
-        "tokens": tokens,
-        "headers": {"Authorization": f"Bearer {tokens['access_token']}"},
+        "user": {"id": user.id, "email": user.email, "name": user.name},
+        "headers": {"Authorization": f"Bearer {access_token}"},
     }
 
 
@@ -198,7 +197,7 @@ class TestSchedulerToDashboardFlow:
     def test_tips_persisted_to_database(self, test_session: Session, test_client: TestClient):
         """Test that generated tips are persisted and accessible via dashboard API."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         scheduler = SchedulerService(db_session=test_session)
 
@@ -272,7 +271,7 @@ class TestSchedulerToDashboardFlow:
     ):
         """Test that market data is persisted and accessible via dashboard API."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create and persist market data
         market_data_record = MarketDataRecord(
@@ -538,7 +537,7 @@ class TestEndToEndDashboardFlow:
     def test_dashboard_displays_latest_tips(self, test_session: Session, test_client: TestClient):
         """Test that dashboard displays the latest tips."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create multiple tips
         for i in range(3):
@@ -567,7 +566,7 @@ class TestEndToEndDashboardFlow:
     def test_dashboard_filters_by_asset_type(self, test_session: Session, test_client: TestClient):
         """Test that dashboard correctly filters by asset type."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create tips of different types
         crypto_tip = TipRecord(
@@ -617,7 +616,7 @@ class TestEndToEndDashboardFlow:
     ):
         """Test that dashboard tip history respects date range."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create tips from different dates
         for i in range(5):
@@ -647,7 +646,7 @@ class TestEndToEndDashboardFlow:
     def test_dashboard_market_data_display(self, test_session: Session, test_client: TestClient):
         """Test that dashboard displays market data correctly."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create market data
         market_data = MarketDataRecord(

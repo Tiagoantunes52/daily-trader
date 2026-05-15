@@ -6,51 +6,38 @@ export default function OAuthCallback() {
   const [message, setMessage] = useState('Processing authentication...')
 
   useEffect(() => {
+    const controller = new AbortController()
+
     const handleOAuthCallback = async () => {
       try {
-        console.log('OAuth callback started')
-        console.log('Current URL:', window.location.href)
-
-        // Extract URL parameters
         const urlParams = new URLSearchParams(window.location.search)
         const code = urlParams.get('code')
         const state = urlParams.get('state')
         const error = urlParams.get('error')
         const errorDescription = urlParams.get('error_description')
 
-        console.log('URL params:', { code: code?.substring(0, 20) + '...', state, error, errorDescription })
-
-        // Check for OAuth errors
         if (error) {
-          console.error('OAuth error:', error, errorDescription)
           setStatus('error')
           setMessage(errorDescription || `OAuth error: ${error}`)
           return
         }
 
-        // Validate required parameters
         if (!code || !state) {
-          console.error('Missing required parameters:', { code: !!code, state: !!state })
           setStatus('error')
           setMessage('Missing required OAuth parameters')
           return
         }
 
-        // Verify state parameter to prevent CSRF attacks
+        // Verify state — do NOT remove it yet; removal happens only on success.
+        // Moving removal here causes React StrictMode's double-invoke to see a missing
+        // state on the second mount and flash an error before the fetch resolves.
         const storedState = sessionStorage.getItem('oauth_state')
-        console.log('State verification:', { received: state, stored: storedState })
-
         if (!storedState || storedState !== state) {
-          console.error('State mismatch - possible CSRF attack')
           setStatus('error')
           setMessage('Invalid state parameter. Please try logging in again.')
           return
         }
 
-        // Clear stored state
-        sessionStorage.removeItem('oauth_state')
-
-        // Determine provider from current path
         const path = window.location.pathname
         let provider
         if (path.includes('/google/')) {
@@ -58,53 +45,51 @@ export default function OAuthCallback() {
         } else if (path.includes('/github/')) {
           provider = 'github'
         } else {
-          console.error('Unknown provider from path:', path)
           setStatus('error')
           setMessage('Unknown OAuth provider')
           return
         }
 
-        console.log('Making callback request to:', `/auth/${provider}/callback`)
-        const response = await fetch(`/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, {
-          method: 'GET',
-          credentials: 'include'
-        })
+        const response = await fetch(
+          `/auth/${provider}/callback?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+          { method: 'GET', credentials: 'include', signal: controller.signal }
+        )
 
-        console.log('Callback response status:', response.status)
+        // Ignore result if this effect instance was cleaned up (StrictMode unmount)
+        if (controller.signal.aborted) return
+
         const data = await response.json()
-        console.log('Callback response data:', data)
 
         if (response.ok) {
-          // Authentication successful
-          console.log('Authentication successful, storing tokens')
+          // Only remove state after confirmed success — prevents the second StrictMode
+          // mount from seeing a missing state and flashing the error screen.
+          sessionStorage.removeItem('oauth_state')
           setStatus('success')
           setMessage('Authentication successful! Redirecting to dashboard...')
 
-          // Store tokens in session manager
           const { default: sessionManager } = await import('../utils/sessionManager.js')
           sessionManager.storeTokens(data.access_token, data.refresh_token)
-          console.log('Tokens stored, initializing session manager')
           await sessionManager.initialize()
 
-          // Redirect to dashboard after a short delay
-          console.log('Redirecting to dashboard in 2 seconds')
           setTimeout(() => {
             window.location.href = '/'
           }, 2000)
         } else {
-          // Authentication failed
-          console.error('Authentication failed:', data)
           setStatus('error')
           setMessage(data.message || 'Authentication failed. Please try again.')
         }
       } catch (error) {
-        console.error('OAuth callback error:', error)
+        if (error.name === 'AbortError') return
         setStatus('error')
         setMessage('Network error occurred. Please try again.')
       }
     }
 
     handleOAuthCallback()
+
+    return () => {
+      controller.abort()
+    }
   }, [])
 
   const handleRetry = () => {

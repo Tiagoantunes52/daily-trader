@@ -39,14 +39,14 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      // Proxy callback API calls (when frontend makes fetch requests)
+      // Proxy callback API calls (when OAuthCallback.jsx makes a fetch to exchange the code)
       '/auth/google/callback': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        // Only proxy if it's an API call (has specific headers or query params)
-        bypass: function (req, res, options) {
-          // If it's a browser navigation (no fetch headers), let React handle it
-          if (!req.headers['content-type'] && !req.headers['accept']?.includes('application/json')) {
+        bypass: function (req) {
+          // Browser navigation sends Accept: text/html — serve React so OAuthCallback renders
+          // fetch() sends Accept: */* — proxy to backend to exchange code for JWT
+          if (req.headers['accept']?.includes('text/html')) {
             return '/index.html'
           }
         }
@@ -54,10 +54,8 @@ export default defineConfig({
       '/auth/github/callback': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        // Only proxy if it's an API call (has specific headers or query params)
-        bypass: function (req, res, options) {
-          // If it's a browser navigation (no fetch headers), let React handle it
-          if (!req.headers['content-type'] && !req.headers['accept']?.includes('application/json')) {
+        bypass: function (req) {
+          if (req.headers['accept']?.includes('text/html')) {
             return '/index.html'
           }
         }
