@@ -9,11 +9,8 @@ from sqlalchemy.orm import sessionmaker
 
 from src.database.models import Base, OAuthConnection, User
 from src.models.auth_schemas import (
-    PasswordChangeRequest,
     TokenResponse,
-    UserLoginRequest,
     UserProfileUpdateRequest,
-    UserRegisterRequest,
     UserResponse,
 )
 
@@ -190,53 +187,6 @@ class TestOAuthConnectionModel:
 class TestAuthSchemas:
     """Tests for authentication Pydantic schemas."""
 
-    def test_user_register_request_valid(self):
-        """Test valid user registration request."""
-        req = UserRegisterRequest(
-            email="test@example.com",
-            password="SecurePassword123",
-            name="Test User",
-        )
-        assert req.email == "test@example.com"
-        assert req.password == "SecurePassword123"
-        assert req.name == "Test User"
-
-    def test_user_register_request_invalid_email(self):
-        """Test registration with invalid email."""
-        with pytest.raises(ValueError, match="is not a valid email"):
-            UserRegisterRequest(
-                email="invalid-email",
-                password="SecurePassword123",
-                name="Test User",
-            )
-
-    def test_user_register_request_short_password(self):
-        """Test registration with short password."""
-        with pytest.raises(ValueError, match="at least 8 characters"):
-            UserRegisterRequest(
-                email="test@example.com",
-                password="short",
-                name="Test User",
-            )
-
-    def test_user_register_request_empty_name(self):
-        """Test registration with empty name."""
-        with pytest.raises(ValueError, match="name"):
-            UserRegisterRequest(
-                email="test@example.com",
-                password="SecurePassword123",
-                name="",
-            )
-
-    def test_user_login_request_valid(self):
-        """Test valid user login request."""
-        req = UserLoginRequest(
-            email="test@example.com",
-            password="SecurePassword123",
-        )
-        assert req.email == "test@example.com"
-        assert req.password == "SecurePassword123"
-
     def test_token_response(self):
         """Test token response model."""
         resp = TokenResponse(
@@ -278,19 +228,3 @@ class TestAuthSchemas:
         assert req.name == "Updated Name"
         assert req.email is None
 
-    def test_password_change_request_valid(self):
-        """Test valid password change request."""
-        req = PasswordChangeRequest(
-            current_password="OldPassword123",
-            new_password="NewPassword456",
-        )
-        assert req.current_password == "OldPassword123"
-        assert req.new_password == "NewPassword456"
-
-    def test_password_change_request_short_new_password(self):
-        """Test password change with short new password."""
-        with pytest.raises(ValueError, match="at least 8 characters"):
-            PasswordChangeRequest(
-                current_password="OldPassword123",
-                new_password="short",
-            )

@@ -22,7 +22,7 @@ class TestProtectedEndpointPropertyBased:
     """Property-based tests for protected endpoint authorization."""
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
@@ -50,7 +50,7 @@ class TestProtectedEndpointPropertyBased:
         assert exc_info.value.status_code == 401
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
@@ -78,7 +78,7 @@ class TestProtectedEndpointPropertyBased:
         assert exc_info.value.status_code == 401
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )

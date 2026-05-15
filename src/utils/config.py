@@ -19,7 +19,7 @@ class EmailConfig:
     mailgun_api_key: str | None = None
     smtp_server: str | None = None
     smtp_port: int | None = None
-    retry_delays: list[int] = None  # Delays in seconds for exponential backoff
+    retry_delays: list[int] | None = None  # Delays in seconds for exponential backoff
     use_mailgun: bool = False
 
     def __post_init__(self):
@@ -62,6 +62,14 @@ class DatabaseConfig:
 
     database_url: str
     echo: bool = False
+
+
+@dataclass
+class AgentConfig:
+    """Configuration for machine-to-machine agent access."""
+
+    sentiment_api_key: str | None = None
+    port: int = 8001
 
 
 @dataclass
@@ -119,14 +127,19 @@ class Config:
         )
 
         self.api = APIConfig(
-            crypto_api_key=os.getenv("CRYPTO_API_KEY"),
-            stock_api_key=os.getenv("STOCK_API_KEY"),
+            crypto_api_key=os.getenv("CRYPTO_API_KEY") or None,
+            stock_api_key=os.getenv("STOCK_API_KEY") or None,
             cache_ttl=int(os.getenv("CACHE_TTL", "300")),
         )
 
         self.database = DatabaseConfig(
             database_url=os.getenv("DATABASE_URL", "sqlite:///./market_tips.db"),
             echo=os.getenv("DATABASE_ECHO", "false").lower() == "true",
+        )
+
+        self.agent = AgentConfig(
+            sentiment_api_key=os.getenv("SENTIMENT_API_KEY") or None,
+            port=int(os.getenv("PORT", "8001")),
         )
 
         self.jwt = JWTConfig(

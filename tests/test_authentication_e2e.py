@@ -8,163 +8,8 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from src.database.models import OAuthConnection, User
-
-
-class TestRegistrationFlow:
-    """End-to-end tests for complete registration flow."""
-
-    def test_complete_registration_flow(self, test_client: TestClient, test_session: Session):
-        """Test complete registration flow from start to finish.
-
-        Requirements: 1.1
-        """
-        # Arrange
-        user_data = {
-            "email": "e2e_register@example.com",
-            "password": "SecurePassword123!",
-            "name": "E2E Test User",
-        }
-
-        # Act - Register user
-        response = test_client.post("/auth/register", json=user_data)
-
-        # Assert - Registration successful
-        assert response.status_code == status.HTTP_201_CREATED
-        response_data = response.json()
-        assert response_data["email"] == user_data["email"]
-        assert response_data["name"] == user_data["name"]
-        assert "id" in response_data
-        assert response_data["is_email_verified"] is False
-        assert response_data["oauth_providers"] == []
-
-        # Verify user exists in database
-        user = test_session.query(User).filter_by(email=user_data["email"]).first()
-        assert user is not None
-        assert user.email == user_data["email"]
-        assert user.name == user_data["name"]
-        assert user.password_hash is not None
-        assert user.is_email_verified is False
-
-    def test_registration_flow_with_duplicate_email(self, test_client: TestClient):
-        """Test registration flow fails with duplicate email.
-
-        Requirements: 1.1
-        """
-        # Arrange
-        user_data = {
-            "email": "duplicate_e2e@example.com",
-            "password": "SecurePassword123!",
-            "name": "First User",
-        }
-
-        # Act - Register first user
-        response1 = test_client.post("/auth/register", json=user_data)
-        assert response1.status_code == status.HTTP_201_CREATED
-
-        # Act - Try to register second user with same email
-        duplicate_data = {
-            "email": "duplicate_e2e@example.com",
-            "password": "DifferentPassword123!",
-            "name": "Second User",
-        }
-        response2 = test_client.post("/auth/register", json=duplicate_data)
-
-        # Assert - Second registration fails
-        assert response2.status_code == status.HTTP_409_CONFLICT
-        response_data = response2.json()
-        assert "detail" in response_data
-        assert "already registered" in response_data["detail"]["message"].lower()
-
-    def test_registration_flow_with_weak_password(self, test_client: TestClient):
-        """Test registration flow fails with weak password.
-
-        Requirements: 1.1
-        """
-        # Arrange
-        user_data = {
-            "email": "weak_password@example.com",
-            "password": "weak",
-            "name": "Test User",
-        }
-
-        # Act
-        response = test_client.post("/auth/register", json=user_data)
-
-        # Assert
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-
-class TestLoginFlow:
-    """End-to-end tests for complete login flow."""
-
-    def test_complete_login_flow(self, test_client: TestClient):
-        """Test complete login flow from registration to login.
-
-        Requirements: 2.1
-        """
-        # Arrange - Register user first
-        user_data = {
-            "email": "e2e_login@example.com",
-            "password": "SecurePassword123!",
-            "name": "E2E Login User",
-        }
-        register_response = test_client.post("/auth/register", json=user_data)
-        assert register_response.status_code == status.HTTP_201_CREATED
-
-        # Act - Login with correct credentials
-        login_data = {"email": user_data["email"], "password": user_data["password"]}
-        login_response = test_client.post("/auth/login", json=login_data)
-
-        # Assert - Login successful
-        assert login_response.status_code == status.HTTP_200_OK
-        login_response_data = login_response.json()
-        assert "access_token" in login_response_data
-        assert "refresh_token" in login_response_data
-        assert login_response_data["token_type"] == "bearer"
-        assert len(login_response_data["access_token"]) > 0
-        assert len(login_response_data["refresh_token"]) > 0
-
-        # Verify tokens are different
-        assert login_response_data["access_token"] != login_response_data["refresh_token"]
-
-    def test_login_flow_with_invalid_credentials(self, test_client: TestClient):
-        """Test login flow fails with invalid credentials.
-
-        Requirements: 2.1
-        """
-        # Arrange - Register user first
-        user_data = {
-            "email": "e2e_invalid@example.com",
-            "password": "CorrectPassword123!",
-            "name": "E2E Invalid User",
-        }
-        register_response = test_client.post("/auth/register", json=user_data)
-        assert register_response.status_code == status.HTTP_201_CREATED
-
-        # Act - Login with wrong password
-        login_data = {"email": user_data["email"], "password": "WrongPassword123!"}
-        login_response = test_client.post("/auth/login", json=login_data)
-
-        # Assert - Login fails with generic error
-        assert login_response.status_code == status.HTTP_401_UNAUTHORIZED
-        response_data = login_response.json()
-        assert "detail" in response_data
-        assert "invalid" in response_data["detail"]["message"].lower()
-
-    def test_login_flow_with_nonexistent_email(self, test_client: TestClient):
-        """Test login flow fails with non-existent email.
-
-        Requirements: 2.1
-        """
-        # Act - Login with non-existent email
-        login_data = {"email": "nonexistent_e2e@example.com", "password": "SomePassword123!"}
-        login_response = test_client.post("/auth/login", json=login_data)
-
-        # Assert - Login fails with generic error
-        assert login_response.status_code == status.HTTP_401_UNAUTHORIZED
-        response_data = login_response.json()
-        assert "detail" in response_data
-        assert "invalid" in response_data["detail"]["message"].lower()
+from src.services.auth_user_service import AuthUserService
+from src.services.token_service import TokenService
 
 
 class TestOAuthFlow:
@@ -175,34 +20,24 @@ class TestOAuthFlow:
 
         Requirements: 3.1, 4.1
         """
-        # Test Google callback without parameters
         response = test_client.get("/auth/google/callback")
-        assert (
-            response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        )  # Missing required query params
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
-        # Test GitHub callback without parameters
         response = test_client.get("/auth/github/callback")
-        assert (
-            response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-        )  # Missing required query params
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
 
     def test_oauth_callback_with_invalid_code(self, test_client: TestClient):
         """Test OAuth callback with invalid authorization code.
 
         Requirements: 3.1, 4.1
         """
-        # Test Google callback with invalid code
         response = test_client.get("/auth/google/callback?code=invalid_code&state=test_state")
-        # Should fail due to invalid code
         assert response.status_code in [
             status.HTTP_400_BAD_REQUEST,
             status.HTTP_500_INTERNAL_SERVER_ERROR,
         ]
 
-        # Test GitHub callback with invalid code
         response = test_client.get("/auth/github/callback?code=invalid_code&state=test_state")
-        # Should fail due to invalid code
         assert response.status_code in [
             status.HTTP_400_BAD_REQUEST,
             status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -214,7 +49,6 @@ class TestOAuthFlow:
 
         Requirements: 3.1, 4.1
         """
-        # Mock the authentication service to simulate successful OAuth
         with patch(
             "src.services.authentication_service.AuthenticationService.handle_google_callback"
         ) as mock_callback:
@@ -227,7 +61,6 @@ class TestOAuthFlow:
             )
             mock_callback.return_value = mock_token_response
 
-            # Test Google OAuth callback
             response = test_client.get("/auth/google/callback?code=test_code&state=test_state")
             assert response.status_code == status.HTTP_200_OK
             data = response.json()
@@ -240,22 +73,20 @@ class TestOAuthFlow:
 
         Requirements: 3.1, 4.1
         """
-        # Test Google authorization endpoint
-        response = test_client.get("/auth/google/authorize")
-        # May fail if OAuth not configured in test, but endpoint should exist
+        response = test_client.get("/auth/google/authorize", follow_redirects=False)
         assert response.status_code in [
-            status.HTTP_302_FOUND,  # Success - redirects to Google
-            status.HTTP_400_BAD_REQUEST,  # OAuth not configured
-            status.HTTP_500_INTERNAL_SERVER_ERROR,  # Configuration error
+            status.HTTP_302_FOUND,
+            status.HTTP_307_TEMPORARY_REDIRECT,
+            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
         ]
 
-        # Test GitHub authorization endpoint
-        response = test_client.get("/auth/github/authorize")
-        # May fail if OAuth not configured in test, but endpoint should exist
+        response = test_client.get("/auth/github/authorize", follow_redirects=False)
         assert response.status_code in [
-            status.HTTP_302_FOUND,  # Success - redirects to GitHub
-            status.HTTP_400_BAD_REQUEST,  # OAuth not configured
-            status.HTTP_500_INTERNAL_SERVER_ERROR,  # Configuration error
+            status.HTTP_302_FOUND,
+            status.HTTP_307_TEMPORARY_REDIRECT,
+            status.HTTP_400_BAD_REQUEST,
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
         ]
 
     def test_oauth_database_integration(self, test_client: TestClient, test_session: Session):
@@ -263,17 +94,15 @@ class TestOAuthFlow:
 
         Requirements: 3.1, 4.1
         """
-        # Create a user manually
         user = User(
             email="oauth_test@example.com",
             name="OAuth Test User",
-            password_hash=None,  # OAuth-only user
+            password_hash=None,
             is_email_verified=True,
         )
         test_session.add(user)
         test_session.flush()
 
-        # Create OAuth connection
         oauth_connection = OAuthConnection(
             user_id=user.id,
             provider="google",
@@ -284,24 +113,21 @@ class TestOAuthFlow:
         test_session.add(oauth_connection)
         test_session.commit()
 
-        # Verify OAuth connection was created
         created_connection = test_session.query(OAuthConnection).filter_by(user_id=user.id).first()
         assert created_connection is not None
         assert created_connection.provider == "google"
         assert created_connection.provider_user_id == "google_test_123"
 
-        # Verify user can have multiple OAuth connections
         github_connection = OAuthConnection(
             user_id=user.id,
             provider="github",
             provider_user_id="github_test_456",
             access_token="encrypted_github_token",
-            refresh_token=None,  # GitHub doesn't provide refresh tokens
+            refresh_token=None,
         )
         test_session.add(github_connection)
         test_session.commit()
 
-        # Verify both connections exist
         connections = test_session.query(OAuthConnection).filter_by(user_id=user.id).all()
         assert len(connections) == 2
         providers = [conn.provider for conn in connections]
@@ -312,31 +138,22 @@ class TestOAuthFlow:
 class TestTokenRefreshFlow:
     """End-to-end tests for token refresh flow."""
 
-    def test_complete_token_refresh_flow(self, test_client: TestClient):
+    def test_complete_token_refresh_flow(self, test_client: TestClient, test_session: Session):
         """Test complete token refresh flow.
 
         Requirements: 5.1
         """
-        # Arrange - Register and login to get tokens
-        user_data = {
-            "email": "e2e_refresh@example.com",
-            "password": "SecurePassword123!",
-            "name": "E2E Refresh User",
-        }
-        register_response = test_client.post("/auth/register", json=user_data)
-        assert register_response.status_code == status.HTTP_201_CREATED
-
-        login_response = test_client.post(
-            "/auth/login", json={"email": user_data["email"], "password": user_data["password"]}
+        user_service = AuthUserService(db_session=test_session)
+        user = user_service.create_user(
+            email="e2e_refresh@example.com",
+            password_hash="hashed_pw",
+            name="E2E Refresh User",
         )
-        assert login_response.status_code == status.HTTP_200_OK
-        tokens = login_response.json()
+        token_service = TokenService()
+        refresh_token = token_service.create_refresh_token(user.id)
 
-        # Act - Refresh the token
-        refresh_data = {"refresh_token": tokens["refresh_token"]}
-        refresh_response = test_client.post("/auth/refresh", json=refresh_data)
+        refresh_response = test_client.post("/auth/refresh", json={"refresh_token": refresh_token})
 
-        # Assert - Refresh successful
         assert refresh_response.status_code == status.HTTP_200_OK
         refresh_data = refresh_response.json()
         assert "access_token" in refresh_data
@@ -344,7 +161,6 @@ class TestTokenRefreshFlow:
         assert refresh_data["token_type"] == "bearer"
         assert len(refresh_data["access_token"]) > 0
 
-        # Verify new access token is valid by using it
         headers = {"Authorization": f"Bearer {refresh_data['access_token']}"}
         profile_response = test_client.get("/api/user/profile", headers=headers)
         assert profile_response.status_code == status.HTTP_200_OK
@@ -354,41 +170,34 @@ class TestTokenRefreshFlow:
 
         Requirements: 5.1
         """
-        # Act - Try to refresh with invalid token
         refresh_data = {"refresh_token": "invalid.refresh.token"}
         refresh_response = test_client.post("/auth/refresh", json=refresh_data)
 
-        # Assert - Refresh fails
         assert refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
         response_data = refresh_response.json()
         assert "detail" in response_data
         assert "invalid" in response_data["detail"]["message"].lower()
 
-    def test_token_refresh_flow_with_access_token(self, test_client: TestClient):
+    def test_token_refresh_flow_with_access_token(
+        self, test_client: TestClient, test_session: Session
+    ):
         """Test token refresh flow fails when using access token instead of refresh token.
 
         Requirements: 5.1
         """
-        # Arrange - Register and login to get tokens
-        user_data = {
-            "email": "e2e_wrong_token@example.com",
-            "password": "SecurePassword123!",
-            "name": "E2E Wrong Token User",
-        }
-        register_response = test_client.post("/auth/register", json=user_data)
-        assert register_response.status_code == status.HTTP_201_CREATED
-
-        login_response = test_client.post(
-            "/auth/login", json={"email": user_data["email"], "password": user_data["password"]}
+        user_service = AuthUserService(db_session=test_session)
+        user = user_service.create_user(
+            email="e2e_wrong_token@example.com",
+            password_hash="hashed_pw",
+            name="E2E Wrong Token User",
         )
-        assert login_response.status_code == status.HTTP_200_OK
-        tokens = login_response.json()
+        token_service = TokenService()
+        access_token = token_service.create_access_token(user.id)
 
-        # Act - Try to refresh using access token
-        refresh_data = {"refresh_token": tokens["access_token"]}
-        refresh_response = test_client.post("/auth/refresh", json=refresh_data)
+        refresh_response = test_client.post(
+            "/auth/refresh", json={"refresh_token": access_token}
+        )
 
-        # Assert - Refresh fails
         assert refresh_response.status_code == status.HTTP_401_UNAUTHORIZED
         response_data = refresh_response.json()
         assert "detail" in response_data
@@ -398,120 +207,65 @@ class TestTokenRefreshFlow:
 class TestLogoutFlow:
     """End-to-end tests for logout flow."""
 
-    def test_complete_logout_flow(self, test_client: TestClient):
+    def test_complete_logout_flow(self, test_client: TestClient, test_session: Session):
         """Test complete logout flow.
 
         Requirements: 5.1
         """
-        # Arrange - Register and login to get tokens
-        user_data = {
-            "email": "e2e_logout@example.com",
-            "password": "SecurePassword123!",
-            "name": "E2E Logout User",
-        }
-        register_response = test_client.post("/auth/register", json=user_data)
-        assert register_response.status_code == status.HTTP_201_CREATED
-
-        login_response = test_client.post(
-            "/auth/login", json={"email": user_data["email"], "password": user_data["password"]}
+        user_service = AuthUserService(db_session=test_session)
+        user = user_service.create_user(
+            email="e2e_logout@example.com",
+            password_hash="hashed_pw",
+            name="E2E Logout User",
         )
-        assert login_response.status_code == status.HTTP_200_OK
-        tokens = login_response.json()
+        token_service = TokenService()
+        access_token = token_service.create_access_token(user.id)
 
-        # Verify tokens work before logout
-        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+        headers = {"Authorization": f"Bearer {access_token}"}
         profile_response = test_client.get("/api/user/profile", headers=headers)
         assert profile_response.status_code == status.HTTP_200_OK
 
-        # Act - Logout
         logout_response = test_client.post("/auth/logout")
 
-        # Assert - Logout successful
         assert logout_response.status_code == status.HTTP_200_OK
         logout_data = logout_response.json()
         assert "message" in logout_data
         assert "logout successful" in logout_data["message"].lower()
 
-        # Note: In a stateless JWT system, tokens remain valid until expiration
-        # The logout endpoint mainly clears cookies and provides confirmation
-        # Token invalidation would require a token blacklist or database tracking
-
 
 class TestCompleteAuthenticationWorkflow:
     """End-to-end tests for complete authentication workflows."""
 
-    def test_complete_registration_login_protected_access_workflow(self, test_client: TestClient):
-        """Test complete workflow: registration -> login -> protected endpoint access.
-
-        Requirements: 1.1, 2.1, 5.1
-        """
-        # Step 1: Register user
-        user_data = {
-            "email": "e2e_complete@example.com",
-            "password": "SecurePassword123!",
-            "name": "E2E Complete User",
-        }
-        register_response = test_client.post("/auth/register", json=user_data)
-        assert register_response.status_code == status.HTTP_201_CREATED
-
-        # Step 2: Login to get tokens
-        login_response = test_client.post(
-            "/auth/login", json={"email": user_data["email"], "password": user_data["password"]}
-        )
-        assert login_response.status_code == status.HTTP_200_OK
-        tokens = login_response.json()
-
-        # Step 3: Access protected endpoint
-        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-        profile_response = test_client.get("/api/user/profile", headers=headers)
-        assert profile_response.status_code == status.HTTP_200_OK
-        profile_data = profile_response.json()
-        assert profile_data["email"] == user_data["email"]
-        assert profile_data["name"] == user_data["name"]
-
-        # Step 4: Access another protected endpoint
-        tips_response = test_client.get("/api/tips", headers=headers)
-        assert tips_response.status_code == status.HTTP_200_OK
-        tips_data = tips_response.json()
-        assert "tips" in tips_data
-        assert "total" in tips_data
-
-    def test_complete_token_refresh_workflow(self, test_client: TestClient):
-        """Test complete token refresh workflow: login -> refresh -> protected access.
+    def test_complete_token_refresh_workflow(
+        self, test_client: TestClient, test_session: Session
+    ):
+        """Test complete token refresh workflow: create tokens -> refresh -> protected access.
 
         Requirements: 2.1, 5.1
         """
-        # Step 1: Register and login
-        user_data = {
-            "email": "e2e_refresh_workflow@example.com",
-            "password": "SecurePassword123!",
-            "name": "E2E Refresh Workflow User",
-        }
-        register_response = test_client.post("/auth/register", json=user_data)
-        assert register_response.status_code == status.HTTP_201_CREATED
-
-        login_response = test_client.post(
-            "/auth/login", json={"email": user_data["email"], "password": user_data["password"]}
+        user_service = AuthUserService(db_session=test_session)
+        user = user_service.create_user(
+            email="e2e_refresh_workflow@example.com",
+            password_hash="hashed_pw",
+            name="E2E Refresh Workflow User",
         )
-        assert login_response.status_code == status.HTTP_200_OK
-        original_tokens = login_response.json()
+        token_service = TokenService()
+        original_access_token = token_service.create_access_token(user.id)
+        original_refresh_token = token_service.create_refresh_token(user.id)
 
-        # Step 2: Refresh tokens
         refresh_response = test_client.post(
-            "/auth/refresh", json={"refresh_token": original_tokens["refresh_token"]}
+            "/auth/refresh", json={"refresh_token": original_refresh_token}
         )
         assert refresh_response.status_code == status.HTTP_200_OK
         new_tokens = refresh_response.json()
 
-        # Step 3: Use new access token for protected endpoint
         headers = {"Authorization": f"Bearer {new_tokens['access_token']}"}
         profile_response = test_client.get("/api/user/profile", headers=headers)
         assert profile_response.status_code == status.HTTP_200_OK
         profile_data = profile_response.json()
-        assert profile_data["email"] == user_data["email"]
+        assert profile_data["email"] == "e2e_refresh_workflow@example.com"
 
-        # Step 4: Verify old access token still works (JWT tokens don't get invalidated)
-        old_headers = {"Authorization": f"Bearer {original_tokens['access_token']}"}
+        old_headers = {"Authorization": f"Bearer {original_access_token}"}
         old_profile_response = test_client.get("/api/user/profile", headers=old_headers)
         assert old_profile_response.status_code == status.HTTP_200_OK
 
@@ -529,20 +283,7 @@ class TestCompleteAuthenticationWorkflow:
         response = test_client.get("/api/user/profile", headers=headers)
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
-        # Scenario 3: Login with non-existent user
-        login_response = test_client.post(
-            "/auth/login", json={"email": "nonexistent@example.com", "password": "password"}
-        )
-        assert login_response.status_code == status.HTTP_401_UNAUTHORIZED
-
-        # Scenario 4: Register with invalid email
-        register_response = test_client.post(
-            "/auth/register",
-            json={"email": "invalid-email", "password": "SecurePassword123!", "name": "Test"},
-        )
-        assert register_response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
-
-        # Scenario 5: Refresh with invalid token
+        # Scenario 3: Refresh with invalid token
         refresh_response = test_client.post(
             "/auth/refresh", json={"refresh_token": "invalid.refresh.token"}
         )

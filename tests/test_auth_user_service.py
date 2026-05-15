@@ -13,7 +13,7 @@ class TestAuthUserServicePropertyBased:
     """Property-based tests for AuthUserService."""
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )

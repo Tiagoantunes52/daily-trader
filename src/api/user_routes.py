@@ -9,12 +9,10 @@ from src.database.db import get_db
 from src.database.models import User
 from src.models.auth_schemas import (
     OAuthDisconnectRequest,
-    PasswordChangeRequest,
     UserProfileUpdateRequest,
     UserResponse,
 )
 from src.services.auth_user_service import AuthUserService
-from src.services.password_service import PasswordService
 
 router = APIRouter(prefix="/api/user", tags=["user"])
 
@@ -30,16 +28,6 @@ def get_user_service(db: Session = Depends(get_db)) -> AuthUserService:
         AuthUserService instance
     """
     return AuthUserService(db_session=db)
-
-
-def get_password_service() -> PasswordService:
-    """
-    Dependency to get password service instance.
-
-    Returns:
-        PasswordService instance
-    """
-    return PasswordService()
 
 
 @router.get("/profile", response_model=UserResponse)
@@ -62,11 +50,11 @@ async def get_profile(
     oauth_providers = [conn.provider for conn in current_user.oauth_connections]
 
     return UserResponse(
-        id=current_user.id,
-        email=current_user.email,
-        name=current_user.name,
-        created_at=current_user.created_at,
-        is_email_verified=current_user.is_email_verified,
+        id=int(current_user.id),  # type: ignore
+        email=str(current_user.email),
+        name=str(current_user.name),
+        created_at=current_user.created_at,  # type: ignore
+        is_email_verified=bool(current_user.is_email_verified),
         oauth_providers=oauth_providers,
     )
 
@@ -101,75 +89,21 @@ async def update_profile(
             update_data["email"] = profile_data.email
 
         # Update user profile
-        updated_user = user_service.update_user(current_user.id, **update_data)
+        updated_user = user_service.update_user(int(current_user.id), **update_data)  # type: ignore
 
         # Get OAuth providers for response
         oauth_providers = [conn.provider for conn in updated_user.oauth_connections]
 
         return UserResponse(
-            id=updated_user.id,
-            email=updated_user.email,
-            name=updated_user.name,
-            created_at=updated_user.created_at,
-            is_email_verified=updated_user.is_email_verified,
+            id=int(updated_user.id),  # type: ignore
+            email=str(updated_user.email),
+            name=str(updated_user.name),
+            created_at=updated_user.created_at,  # type: ignore
+            is_email_verified=bool(updated_user.is_email_verified),
             oauth_providers=oauth_providers,
         )
     except Exception as e:
         error_response = handle_service_error(e, "profile_update")
-        raise error_response.to_http_exception() from e
-
-
-@router.post("/change-password", status_code=status.HTTP_200_OK)
-async def change_password(
-    password_data: PasswordChangeRequest,
-    current_user: User = Depends(get_current_user),
-    user_service: AuthUserService = Depends(get_user_service),
-    password_service: PasswordService = Depends(get_password_service),
-    _csrf_validation: None = Depends(validate_csrf_token),
-):
-    """
-    Change current user's password.
-
-    Args:
-        password_data: Password change data (current_password, new_password)
-        current_user: Authenticated user from JWT token
-        user_service: User service instance
-        password_service: Password service instance
-
-    Returns:
-        Success message
-
-    Raises:
-        HTTPException: 401 if not authenticated, 400 if current password is wrong
-    """
-    try:
-        # Check if user has a password (OAuth-only users don't have passwords)
-        if not current_user.password_hash:
-            raise ValueError("Cannot change password for OAuth-only account")
-
-        # Verify current password
-        if not password_service.verify_password(
-            password_data.current_password, current_user.password_hash
-        ):
-            raise ValueError("Current password is incorrect")
-
-        # Validate new password strength
-        is_valid, errors = password_service.validate_password_strength(password_data.new_password)
-        if not is_valid:
-            raise ValueError(
-                f"New password does not meet strength requirements: {'; '.join(errors)}"
-            )
-
-        # Hash new password
-        new_password_hash = password_service.hash_password(password_data.new_password)
-
-        # Update password in database
-        user_service.update_user(current_user.id, password_hash=new_password_hash)
-
-        return {"message": "Password changed successfully"}
-
-    except Exception as e:
-        error_response = handle_service_error(e, "password_change")
         raise error_response.to_http_exception() from e
 
 
@@ -205,12 +139,8 @@ async def disconnect_oauth(
         if not oauth_connection:
             raise ValueError(f"OAuth provider '{disconnect_data.provider}' is not connected")
 
-        # Check if user has other authentication methods
-        has_password = bool(current_user.password_hash)
-        has_other_oauth = len(current_user.oauth_connections) > 1
-
-        if not has_password and not has_other_oauth:
-            raise ValueError("Cannot disconnect last authentication method. Set a password first.")
+        if len(current_user.oauth_connections) <= 1:
+            raise ValueError("Cannot disconnect last authentication method.")
 
         # Remove the OAuth connection
         db.delete(oauth_connection)
@@ -244,7 +174,7 @@ async def delete_account(
     """
     try:
         # Delete user account (cascades to OAuth connections)
-        success = user_service.delete_user(current_user.id)
+        success = user_service.delete_user(int(current_user.id))  # type: ignore
 
         if not success:
             raise ValueError("Failed to delete account")

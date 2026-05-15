@@ -13,28 +13,25 @@ from src.database.models import MarketDataRecord, TipRecord
 
 
 @pytest.fixture
-def authenticated_user(test_client: TestClient):
+def authenticated_user(test_client: TestClient, test_session: Session):
     """Create and authenticate a test user, return user data and tokens."""
-    # Register a user
-    user_data = {
-        "email": "testuser@example.com",
-        "password": "SecurePass123!",
-        "name": "Test User",
-    }
-    register_response = test_client.post("/auth/register", json=user_data)
-    assert register_response.status_code == status.HTTP_201_CREATED
-    user_info = register_response.json()
+    from src.services.auth_user_service import AuthUserService
+    from src.services.token_service import TokenService
 
-    # Login to get tokens
-    login_data = {"email": user_data["email"], "password": user_data["password"]}
-    login_response = test_client.post("/auth/login", json=login_data)
-    assert login_response.status_code == status.HTTP_200_OK
-    tokens = login_response.json()
+    user_service = AuthUserService(db_session=test_session)
+    user = user_service.create_user(
+        email="testuser@example.com",
+        password_hash="hashed_pw",
+        name="Test User",
+    )
+    token_service = TokenService()
+    access_token = token_service.create_access_token(user.id)
+    refresh_token = token_service.create_refresh_token(user.id)
 
     return {
-        "user": user_info,
-        "tokens": tokens,
-        "headers": {"Authorization": f"Bearer {tokens['access_token']}"},
+        "user": {"id": user.id, "email": user.email, "name": user.name},
+        "tokens": {"access_token": access_token, "refresh_token": refresh_token},
+        "headers": {"Authorization": f"Bearer {access_token}"},
     }
 
 
@@ -203,45 +200,6 @@ class TestDashboardEndpointsAuthentication:
 
 class TestUserManagementEndpointsAuthentication:
     """Tests for user management endpoints requiring authentication."""
-
-    def test_create_user_requires_authentication(self, test_client: TestClient):
-        """Test that POST /api/users requires valid authentication."""
-        # Arrange
-        user_data = {
-            "email": "newuser@example.com",
-            "morning_time": "08:00",
-            "evening_time": "18:00",
-            "asset_preferences": ["crypto"],
-        }
-
-        # Act - Request without authentication
-        response = test_client.post("/api/users", json=user_data)
-
-        # Assert
-        assert response.status_code == status.HTTP_403_FORBIDDEN
-
-    def test_create_user_with_valid_authentication(
-        self, test_client: TestClient, authenticated_user
-    ):
-        """Test that POST /api/users works with valid authentication."""
-        # Arrange
-        user_data = {
-            "email": "newuser@example.com",
-            "morning_time": "08:00",
-            "evening_time": "18:00",
-            "asset_preferences": ["crypto"],
-        }
-
-        # Act - Request with valid token
-        response = test_client.post(
-            "/api/users", json=user_data, headers=authenticated_user["headers"]
-        )
-
-        # Assert
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert "id" in data
-        assert data["email"] == user_data["email"]
 
     def test_get_user_requires_authentication(self, test_client: TestClient):
         """Test that GET /api/users/{user_id} requires valid authentication."""
@@ -490,7 +448,6 @@ class TestProtectedEndpointAccessControl:
         user_routes = [
             ("/api/user/profile", "GET"),
             ("/api/user/profile", "PUT"),
-            ("/api/user/change-password", "POST"),
             ("/api/user/disconnect-oauth", "POST"),
             ("/api/user/account", "DELETE"),
         ]
@@ -541,11 +498,6 @@ class TestProtectedEndpointAccessControl:
         """Test that CSRF-protected endpoints require valid CSRF token."""
         csrf_protected_routes = [
             ("/api/user/profile", "PUT", {"name": "Updated Name"}),
-            (
-                "/api/user/change-password",
-                "POST",
-                {"current_password": "old", "new_password": "NewPassword123!"},
-            ),
             ("/api/user/disconnect-oauth", "POST", {"provider": "google"}),
             ("/api/user/account", "DELETE", {}),
         ]
@@ -668,41 +620,23 @@ class TestProtectedEndpointPerformance:
 class TestProtectedEndpointTokenValidation:
     """Tests for comprehensive token validation scenarios."""
 
-    def test_valid_token_with_different_users(self, test_client: TestClient, sample_tips):
+    def test_valid_token_with_different_users(
+        self, test_client: TestClient, test_session: Session, sample_tips
+    ):
         """Test that valid tokens work for different users."""
-        # Create two different users
-        user1_data = {
-            "email": "user1_token@example.com",
-            "password": "SecurePassword123!",
-            "name": "User 1",
-        }
-        user2_data = {
-            "email": "user2_token@example.com",
-            "password": "SecurePassword123!",
-            "name": "User 2",
-        }
+        from src.services.auth_user_service import AuthUserService
+        from src.services.token_service import TokenService
 
-        # Register both users
-        test_client.post("/auth/register", json=user1_data)
-        test_client.post("/auth/register", json=user2_data)
-
-        # Login both users
-        login1 = test_client.post(
-            "/auth/login", json={"email": user1_data["email"], "password": user1_data["password"]}
+        user_service = AuthUserService(db_session=test_session)
+        user1 = user_service.create_user(
+            email="user1_token@example.com", password_hash="hash1", name="User 1"
         )
-        login2 = test_client.post(
-            "/auth/login", json={"email": user2_data["email"], "password": user2_data["password"]}
+        user2 = user_service.create_user(
+            email="user2_token@example.com", password_hash="hash2", name="User 2"
         )
-
-        assert login1.status_code == status.HTTP_200_OK
-        assert login2.status_code == status.HTTP_200_OK
-
-        tokens1 = login1.json()
-        tokens2 = login2.json()
-
-        # Both tokens should work for protected endpoints
-        headers1 = {"Authorization": f"Bearer {tokens1['access_token']}"}
-        headers2 = {"Authorization": f"Bearer {tokens2['access_token']}"}
+        token_service = TokenService()
+        headers1 = {"Authorization": f"Bearer {token_service.create_access_token(user1.id)}"}
+        headers2 = {"Authorization": f"Bearer {token_service.create_access_token(user2.id)}"}
 
         response1 = test_client.get("/api/tips", headers=headers1)
         response2 = test_client.get("/api/tips", headers=headers2)
@@ -710,7 +644,6 @@ class TestProtectedEndpointTokenValidation:
         assert response1.status_code == status.HTTP_200_OK
         assert response2.status_code == status.HTTP_200_OK
 
-        # Verify user context is correct for each
         data1 = response1.json()
         data2 = response2.json()
         assert data1["user_id"] != data2["user_id"]
@@ -735,109 +668,78 @@ class TestProtectedEndpointTokenValidation:
 
             assert response.status_code == status.HTTP_200_OK, f"Token should work for {endpoint}"
 
-    def test_refresh_token_cannot_access_protected_endpoints(self, test_client: TestClient):
+    def test_refresh_token_cannot_access_protected_endpoints(
+        self, test_client: TestClient, test_session: Session
+    ):
         """Test that refresh tokens cannot be used to access protected endpoints."""
-        # Register and login to get tokens
-        user_data = {
-            "email": "refresh_test@example.com",
-            "password": "SecurePassword123!",
-            "name": "Refresh Test User",
-        }
-        test_client.post("/auth/register", json=user_data)
-        login_response = test_client.post(
-            "/auth/login", json={"email": user_data["email"], "password": user_data["password"]}
-        )
-        tokens = login_response.json()
+        from src.services.auth_user_service import AuthUserService
+        from src.services.token_service import TokenService
 
-        # Try to use refresh token for protected endpoint
-        headers = {"Authorization": f"Bearer {tokens['refresh_token']}"}
+        user_service = AuthUserService(db_session=test_session)
+        user = user_service.create_user(
+            email="refresh_test@example.com", password_hash="hash", name="Refresh Test User"
+        )
+        token_service = TokenService()
+        refresh_token = token_service.create_refresh_token(user.id)
+
+        headers = {"Authorization": f"Bearer {refresh_token}"}
         response = test_client.get("/api/tips", headers=headers)
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
         response_data = response.json()
-        # The detail field contains the error message directly
         assert "invalid token type" in response_data["detail"].lower()
 
 
 class TestProtectedEndpointDataIsolation:
     """Tests to ensure users can only access their own data."""
 
-    def test_user_profile_data_isolation(self, test_client: TestClient):
+    def test_user_profile_data_isolation(self, test_client: TestClient, test_session: Session):
         """Test that users can only access their own profile data."""
-        # Create two users
-        user1_data = {
-            "email": "isolation1@example.com",
-            "password": "SecurePassword123!",
-            "name": "User 1",
-        }
-        user2_data = {
-            "email": "isolation2@example.com",
-            "password": "SecurePassword123!",
-            "name": "User 2",
-        }
+        from src.services.auth_user_service import AuthUserService
+        from src.services.token_service import TokenService
 
-        # Register users
-        reg1 = test_client.post("/auth/register", json=user1_data)
-        reg2 = test_client.post("/auth/register", json=user2_data)
-        _user1_id = reg1.json()["id"]
-        _user2_id = reg2.json()["id"]
-
-        # Login users
-        login1 = test_client.post(
-            "/auth/login", json={"email": user1_data["email"], "password": user1_data["password"]}
+        user_service = AuthUserService(db_session=test_session)
+        user1 = user_service.create_user(
+            email="isolation1@example.com", password_hash="hash1", name="User 1"
         )
-        login2 = test_client.post(
-            "/auth/login", json={"email": user2_data["email"], "password": user2_data["password"]}
+        user2 = user_service.create_user(
+            email="isolation2@example.com", password_hash="hash2", name="User 2"
         )
+        token_service = TokenService()
+        headers1 = {"Authorization": f"Bearer {token_service.create_access_token(user1.id)}"}
+        headers2 = {"Authorization": f"Bearer {token_service.create_access_token(user2.id)}"}
 
-        headers1 = {"Authorization": f"Bearer {login1.json()['access_token']}"}
-        headers2 = {"Authorization": f"Bearer {login2.json()['access_token']}"}
-
-        # User 1 should access their own profile
         response1 = test_client.get("/api/user/profile", headers=headers1)
         assert response1.status_code == status.HTTP_200_OK
         profile1 = response1.json()
-        assert profile1["email"] == user1_data["email"]
+        assert profile1["email"] == "isolation1@example.com"
 
-        # User 2 should access their own profile
         response2 = test_client.get("/api/user/profile", headers=headers2)
         assert response2.status_code == status.HTTP_200_OK
         profile2 = response2.json()
-        assert profile2["email"] == user2_data["email"]
+        assert profile2["email"] == "isolation2@example.com"
 
-        # Profiles should be different
         assert profile1["id"] != profile2["id"]
         assert profile1["email"] != profile2["email"]
 
-    def test_tips_data_context_per_user(self, test_client: TestClient, sample_tips):
+    def test_tips_data_context_per_user(
+        self, test_client: TestClient, test_session: Session, sample_tips
+    ):
         """Test that tips endpoint provides correct user context for different users."""
-        # Create two users
-        user1_data = {
-            "email": "tips1@example.com",
-            "password": "SecurePassword123!",
-            "name": "Tips User 1",
-        }
-        user2_data = {
-            "email": "tips2@example.com",
-            "password": "SecurePassword123!",
-            "name": "Tips User 2",
-        }
+        from src.services.auth_user_service import AuthUserService
+        from src.services.token_service import TokenService
 
-        # Register and login users
-        reg1 = test_client.post("/auth/register", json=user1_data)
-        reg2 = test_client.post("/auth/register", json=user2_data)
-
-        login1 = test_client.post(
-            "/auth/login", json={"email": user1_data["email"], "password": user1_data["password"]}
+        user_service = AuthUserService(db_session=test_session)
+        user1 = user_service.create_user(
+            email="tips1@example.com", password_hash="hash1", name="Tips User 1"
         )
-        login2 = test_client.post(
-            "/auth/login", json={"email": user2_data["email"], "password": user2_data["password"]}
+        user2 = user_service.create_user(
+            email="tips2@example.com", password_hash="hash2", name="Tips User 2"
         )
+        token_service = TokenService()
+        headers1 = {"Authorization": f"Bearer {token_service.create_access_token(user1.id)}"}
+        headers2 = {"Authorization": f"Bearer {token_service.create_access_token(user2.id)}"}
 
-        headers1 = {"Authorization": f"Bearer {login1.json()['access_token']}"}
-        headers2 = {"Authorization": f"Bearer {login2.json()['access_token']}"}
-
-        # Both users should get tips but with their own user context
         response1 = test_client.get("/api/tips", headers=headers1)
         response2 = test_client.get("/api/tips", headers=headers2)
 
@@ -847,7 +749,6 @@ class TestProtectedEndpointDataIsolation:
         data1 = response1.json()
         data2 = response2.json()
 
-        # User contexts should be different
         assert data1["user_id"] != data2["user_id"]
-        assert data1["user_id"] == reg1.json()["id"]
-        assert data2["user_id"] == reg2.json()["id"]
+        assert data1["user_id"] == user1.id
+        assert data2["user_id"] == user2.id

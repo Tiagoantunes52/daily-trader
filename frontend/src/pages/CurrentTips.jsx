@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { getTips, getMarketData, generateTips } from '../api/client'
 import TipCard from '../components/TipCard'
 import MarketDataChart from '../components/MarketDataChart'
@@ -71,10 +71,21 @@ export default function CurrentTips() {
     }
   }, [fetchData])
 
+  const didMount = useRef(false)
+
+  // Generate tips once on mount only
   useEffect(() => {
-    // Generate tips on first load
     handleGenerateTips()
-  }, [handleGenerateTips])
+    didMount.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Re-fetch when filters change after initial mount (no tip generation)
+  useEffect(() => {
+    if (!didMount.current) return
+    fetchData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.assetType, filters.days])
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters)

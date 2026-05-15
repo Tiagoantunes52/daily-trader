@@ -34,7 +34,7 @@ class EmailService:
         self.db_session = db_session
         self.event_store = event_store
         self.logger = StructuredLogger("email_service")
-        self.retry_delays = config.email.retry_delays
+        self.retry_delays = config.email.retry_delays or [300, 900, 1800]
         self.smtp_server = config.email.smtp_server
         self.sender_email = config.email.sender_email
 
@@ -217,7 +217,9 @@ class EmailService:
                 message.attach(html_part)
 
                 # Send email
-                with smtplib.SMTP(config.email.smtp_server, config.email.smtp_port) as server:
+                with smtplib.SMTP(
+                    str(config.email.smtp_server), int(config.email.smtp_port or 587)
+                ) as server:
                     server.starttls()
                     server.login(config.email.sender_email, config.email.sender_password)
                     server.send_message(message)

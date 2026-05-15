@@ -98,30 +98,6 @@ export const generateTips = async () => {
 
 export default client
 
-// Authentication Endpoints
-export const login = async (email, password) => {
-  const response = await fetch('/auth/login', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ email, password })
-  })
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || 'Login failed')
-  }
-
-  const tokenData = await response.json()
-
-  // Store tokens in session manager
-  const { default: sessionManager } = await import('../utils/sessionManager.js')
-  sessionManager.storeTokens(tokenData.access_token, tokenData.refresh_token)
-
-  return tokenData
-}
-
 export const logout = async () => {
   const { default: sessionManager } = await import('../utils/sessionManager.js')
   return sessionManager.logout()
@@ -203,12 +179,7 @@ export const deleteAccount = async () => {
   return response.json()
 }
 
-// User Management Endpoints
-export const createUser = async (userData) => {
-  const response = await client.post('/users', userData)
-  return response.data
-}
-
+// User Preference Endpoints
 export const getUser = async (userId) => {
   const response = await client.get(`/users/${userId}`)
   return response.data

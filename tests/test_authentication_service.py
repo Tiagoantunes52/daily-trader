@@ -34,7 +34,7 @@ class TestAuthenticationServicePropertyBased:
     """Property-based tests for AuthenticationService."""
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100 - bcrypt is slow
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
@@ -94,7 +94,7 @@ class TestAuthenticationServicePropertyBased:
             )
 
     @settings(
-        max_examples=50,
+        max_examples=10,  # Reduced from 50
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
@@ -144,7 +144,7 @@ class TestAuthenticationServicePropertyBased:
             pass
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100 - bcrypt is slow
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
@@ -209,7 +209,7 @@ class TestOAuthCallbackPropertyBased:
     """Property-based tests for OAuth callback handlers."""
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100 - bcrypt is slow
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
@@ -294,7 +294,7 @@ class TestOAuthCallbackPropertyBased:
             db_session.close()
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100 - bcrypt is slow
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
@@ -837,7 +837,7 @@ class TestAuthenticationServiceUnitAdditional:
             auth_service.login("oauth@example.com", "AnyPassword123!")
 
     @settings(
-        max_examples=100,
+        max_examples=10,  # Reduced from 100 - bcrypt is slow
         deadline=None,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )

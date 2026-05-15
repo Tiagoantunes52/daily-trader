@@ -1,26 +1,42 @@
-import React, { useState } from 'react'
-import { createUser, updateUser, getUser } from '../api/client'
+import React, { useState, useEffect } from 'react'
+import { updateUser, getUserByEmail, getUserProfile } from '../api/client'
 import './UserSettings.css'
 
 export default function UserSettings() {
-  const [userId, setUserId] = useState('')
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(null)
   const [formData, setFormData] = useState({
-    email: '',
     morning_time: '',
     evening_time: '',
     asset_preferences: []
   })
 
+  // Auto-load the current user's preferences on mount
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        const authUser = await getUserProfile()
+        const userData = await getUserByEmail(authUser.email)
+        setUser(userData)
+        setFormData({
+          morning_time: userData.morning_time || '',
+          evening_time: userData.evening_time || '',
+          asset_preferences: userData.asset_preferences || []
+        })
+      } catch {
+        setError('Failed to load your profile. Please try again.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadCurrentUser()
+  }, [])
+
   const handleInputChange = (e) => {
     const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
+    setFormData(prev => ({ ...prev, [name]: value }))
   }
 
   const handlePreferenceChange = (asset) => {
@@ -32,61 +48,9 @@ export default function UserSettings() {
     }))
   }
 
-  const handleLoadUser = async () => {
-    if (!userId) {
-      setError('Please enter a user ID')
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const userData = await getUser(userId)
-      setUser(userData)
-      setFormData({
-        email: userData.email,
-        morning_time: userData.morning_time || '',
-        evening_time: userData.evening_time || '',
-        asset_preferences: userData.asset_preferences ? JSON.parse(userData.asset_preferences) : []
-      })
-    } catch (err) {
-      setError(err.message || 'Failed to load user')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleCreateUser = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
-
-    try {
-      const newUser = await createUser({
-        email: formData.email,
-        morning_time: formData.morning_time || null,
-        evening_time: formData.evening_time || null,
-        asset_preferences: formData.asset_preferences.length > 0 ? formData.asset_preferences : null
-      })
-      setUser(newUser)
-      setUserId(newUser.id)
-      setSuccess(`User created successfully! ID: ${newUser.id}`)
-    } catch (err) {
-      setError(err.message || 'Failed to create user')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const handleUpdateUser = async (e) => {
     e.preventDefault()
-    if (!user) {
-      setError('No user loaded')
-      return
-    }
+    if (!user) return
 
     setLoading(true)
     setError(null)
@@ -94,54 +58,40 @@ export default function UserSettings() {
 
     try {
       const updatedUser = await updateUser(user.id, {
-        email: formData.email,
         morning_time: formData.morning_time || null,
         evening_time: formData.evening_time || null,
         asset_preferences: formData.asset_preferences.length > 0 ? formData.asset_preferences : null
       })
       setUser(updatedUser)
-      setSuccess('User updated successfully!')
+      setSuccess('Preferences updated successfully!')
     } catch (err) {
-      setError(err.message || 'Failed to update user')
+      setError(err.message || 'Failed to update preferences')
     } finally {
       setLoading(false)
     }
+  }
+
+  if (loading && !user) {
+    return (
+      <div className="user-settings-page">
+        <div className="page-header">
+          <h1>User Settings</h1>
+        </div>
+        <div className="settings-container">
+          <p>Loading your profile...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="user-settings-page">
       <div className="page-header">
         <h1>User Settings</h1>
-        <p>Manage your profile and preferences</p>
+        <p>Manage your delivery preferences</p>
       </div>
 
       <div className="settings-container">
-        {/* Load User Section */}
-        <div className="settings-section">
-          <h2>Load Existing User</h2>
-          <div className="load-user-form">
-            <div className="form-group">
-              <label htmlFor="user-id">User ID</label>
-              <input
-                id="user-id"
-                type="text"
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="Enter user ID"
-                className="form-input"
-              />
-            </div>
-            <button
-              onClick={handleLoadUser}
-              disabled={loading}
-              className="btn btn-primary"
-            >
-              {loading ? 'Loading...' : 'Load User'}
-            </button>
-          </div>
-        </div>
-
-        {/* Error/Success Messages */}
         {error && (
           <div className="alert alert-error">
             <span>⚠️ {error}</span>
@@ -153,24 +103,9 @@ export default function UserSettings() {
           </div>
         )}
 
-        {/* User Form */}
         <div className="settings-section">
-          <h2>{user ? 'Update User' : 'Create New User'}</h2>
-          <form onSubmit={user ? handleUpdateUser : handleCreateUser} className="user-form">
-            <div className="form-group">
-              <label htmlFor="email">Email Address *</label>
-              <input
-                id="email"
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="user@example.com"
-                className="form-input"
-                required
-              />
-            </div>
-
+          <h2>Delivery Preferences</h2>
+          <form onSubmit={handleUpdateUser} className="user-form">
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="morning-time">Morning Delivery Time</label>
@@ -224,31 +159,22 @@ export default function UserSettings() {
               disabled={loading}
               className="btn btn-primary"
             >
-              {loading ? 'Saving...' : user ? 'Update User' : 'Create User'}
+              {loading ? 'Saving...' : 'Save Preferences'}
             </button>
           </form>
         </div>
 
-        {/* User Info Display */}
         {user && (
           <div className="settings-section">
-            <h2>User Information</h2>
+            <h2>Account Information</h2>
             <div className="user-info">
-              <div className="info-row">
-                <span className="label">User ID:</span>
-                <span className="value">{user.id}</span>
-              </div>
               <div className="info-row">
                 <span className="label">Email:</span>
                 <span className="value">{user.email}</span>
               </div>
               <div className="info-row">
-                <span className="label">Created:</span>
+                <span className="label">Member since:</span>
                 <span className="value">{new Date(user.created_at).toLocaleDateString()}</span>
-              </div>
-              <div className="info-row">
-                <span className="label">Last Updated:</span>
-                <span className="value">{new Date(user.updated_at).toLocaleDateString()}</span>
               </div>
             </div>
           </div>

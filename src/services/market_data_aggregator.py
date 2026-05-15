@@ -20,6 +20,13 @@ class MarketDataAggregator:
         self.alphavantage_api_key = config.api.stock_api_key
         self.logger = StructuredLogger("MarketDataAggregator")
 
+        if not self.alphavantage_api_key:
+            self.logger.warning(
+                "STOCK_API_KEY is not set — stock data will use Alpha Vantage demo key "
+                "(only 'IBM' symbol supported). Set STOCK_API_KEY in .env for real stock data.",
+                context={"source": "Alpha Vantage"},
+            )
+
     def fetch_crypto_data(self, symbols: list[str]) -> list[MarketData]:
         """
         Fetch cryptocurrency data from available sources.
@@ -156,13 +163,18 @@ class MarketDataAggregator:
                 data = response.json()
 
                 if "Global Quote" not in data or not data["Global Quote"]:
+                    # Surface Alpha Vantage error hints (rate limit, bad key, etc.)
+                    hint = data.get("Note") or data.get("Information") or data.get("Error Message")
                     self.logger.warning(
-                        "Stock symbol not found in response",
+                        "Stock symbol not found in Alpha Vantage response",
                         context={
                             "trace_id": trace_id,
                             "source": "Alpha Vantage",
                             "symbol": symbol,
                             "result": "not_found",
+                            "api_hint": hint,
+                            "using_demo_key": not self.alphavantage_api_key,
+                            "response_keys": list(data.keys()),
                         },
                     )
                     continue
@@ -242,7 +254,7 @@ class MarketDataAggregator:
 
             return None
         except Exception as e:
-            print(f"Error fetching historical data for {symbol}: {e}")
+            self.logger.error(f"Error fetching historical data for {symbol}: {e}")
             return None
 
     def _fetch_crypto_historical(self, symbol: str, period: str = "7d") -> HistoricalData:
@@ -271,10 +283,10 @@ class MarketDataAggregator:
             prices = [price[1] for price in data.get("prices", [])]
             timestamps = [price[0] / 1000 for price in data.get("prices", [])]  # Convert to seconds
 
-            return HistoricalData(period=period, prices=prices, timestamps=timestamps)
+            return HistoricalData(period=period, prices=prices, timestamps=timestamps)  # type: ignore
         except Exception as e:
-            print(f"Error fetching crypto historical data for {symbol}: {e}")
-            return HistoricalData(period=period, prices=[], timestamps=[])
+            self.logger.error(f"Error fetching crypto historical data for {symbol}: {e}")
+            return HistoricalData(period=period, prices=[], timestamps=[])  # type: ignore
 
     def _fetch_stock_historical(self, symbol: str, period: str = "7d") -> HistoricalData:
         """
@@ -301,7 +313,17 @@ class MarketDataAggregator:
 
             time_series_key = "Time Series (Daily)"
             if time_series_key not in data:
-                return HistoricalData(period=period, prices=[], timestamps=[])
+                hint = data.get("Note") or data.get("Information") or data.get("Error Message")
+                self.logger.warning(
+                    f"No historical data for stock {symbol}",
+                    context={
+                        "source": "Alpha Vantage",
+                        "symbol": symbol,
+                        "api_hint": hint,
+                        "using_demo_key": not self.alphavantage_api_key,
+                    },
+                )
+                return HistoricalData(period=period, prices=[], timestamps=[])  # type: ignore
 
             time_series = data[time_series_key]
 
@@ -322,7 +344,7 @@ class MarketDataAggregator:
                 timestamp = dt.strptime(date_str, "%Y-%m-%d").timestamp()
                 timestamps.append(timestamp)
 
-            return HistoricalData(period=period, prices=prices, timestamps=timestamps)
+            return HistoricalData(period=period, prices=prices, timestamps=timestamps)  # type: ignore
         except Exception as e:
-            print(f"Error fetching stock historical data for {symbol}: {e}")
-            return HistoricalData(period=period, prices=[], timestamps=[])
+            self.logger.error(f"Error fetching stock historical data for {symbol}: {e}")
+            return HistoricalData(period=period, prices=[], timestamps=[])  # type: ignore

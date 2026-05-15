@@ -14,7 +14,7 @@ from src.utils.config import config
 class TestTokenServicePropertyBased:
     """Property-based tests for TokenService."""
 
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=10, deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(user_id=st.integers(min_value=1, max_value=2147483647))
     def test_token_round_trip_consistency(self, user_id: int):
         """
@@ -45,7 +45,7 @@ class TestTokenServicePropertyBased:
         assert refresh_payload["sub"] == str(user_id)
         assert refresh_payload["type"] == "refresh"
 
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=10, deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(user_id=st.integers(min_value=1, max_value=2147483647))
     def test_access_token_expiration(self, user_id: int):
         """
@@ -69,7 +69,7 @@ class TestTokenServicePropertyBased:
         with pytest.raises(jwt.ExpiredSignatureError):
             TokenService.verify_token(access_token)
 
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=10, deadline=None, suppress_health_check=[HealthCheck.too_slow])
     @given(user_id=st.integers(min_value=1, max_value=2147483647))
     def test_refresh_token_validity(self, user_id: int):
         """

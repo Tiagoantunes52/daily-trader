@@ -10,11 +10,12 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy.orm import Session
 
-from src.database.models import MarketDataRecord, TipRecord, UserProfile
+from src.database.models import MarketDataRecord, TipRecord, User
 from src.models.trading_tip import EmailContent
 from src.services.analysis_engine import AnalysisEngine
 from src.services.email_service import EmailService
 from src.services.market_data_aggregator import MarketDataAggregator
+from src.services.sentiment_service import SentimentService
 from src.utils.event_store import EventStore
 from src.utils.logger import StructuredLogger
 from src.utils.trace_context import clear_trace, create_trace
@@ -235,8 +236,16 @@ class SchedulerService:
                 },
             )
 
-            crypto_tips = self.analysis_engine.analyze_crypto(crypto_data)
-            stock_tips = self.analysis_engine.analyze_stocks(stock_data)
+            all_symbols = crypto_symbols + stock_symbols
+            sentiment_map = {}
+            if self.db_session:
+                try:
+                    sentiment_map = SentimentService(self.db_session).get_latest_map(all_symbols)
+                except Exception:
+                    pass
+
+            crypto_tips = self.analysis_engine.analyze_crypto(crypto_data, sentiment=sentiment_map)
+            stock_tips = self.analysis_engine.analyze_stocks(stock_data, sentiment=sentiment_map)
             all_tips = crypto_tips + stock_tips
 
             # Store tips and market data in database
@@ -273,7 +282,7 @@ class SchedulerService:
             users = []
             if self.db_session:
                 try:
-                    users = self.db_session.query(UserProfile).all()
+                    users = self.db_session.query(User).all()
                     structured_logger.debug(
                         f"Fetched {len(users)} users from database",
                         context={"trace_id": trace_id, "user_count": len(users)},
@@ -282,7 +291,6 @@ class SchedulerService:
                     structured_logger.warning(
                         f"Error fetching users from database: {e!s}",
                         context={"trace_id": trace_id},
-                        exception=e,
                     )
 
             # If no users found, use default recipient for testing
@@ -312,9 +320,9 @@ class SchedulerService:
                     pass
 
                 email_content = EmailContent(
-                    recipient=user.email,
+                    recipient=str(user.email),
                     subject=f"{delivery_type.capitalize()} Market Tips - {datetime.now().strftime('%Y-%m-%d')}",
-                    delivery_type=delivery_type,
+                    delivery_type=delivery_type,  # type: ignore
                     tips=all_tips,
                     market_data=all_market_data,
                     generated_at=datetime.now(),

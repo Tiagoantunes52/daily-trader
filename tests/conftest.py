@@ -70,15 +70,31 @@ def test_client(test_session):
     app.dependency_overrides.clear()
 
 
-@pytest.fixture(autouse=True)
-def mock_mailgun_requests():
-    """Auto-mock all Mailgun API requests in tests."""
-    with patch("src.services.email_service.requests.post") as mock_post:
+@pytest.fixture()
+def mock_email_transport():
+    """Auto-mock email transport mechanisms in tests."""
+    # Mock SMTP
+    with (
+        patch("smtplib.SMTP") as mock_smtp_class,
+        patch("src.services.email_service.requests.post") as mock_requests_post,
+        patch("time.sleep") as mock_sleep,
+    ):
+        # Configure SMTP mock
+        mock_smtp_instance = MagicMock()
+        mock_smtp_class.return_value.__enter__.return_value = mock_smtp_instance
+
+        # Configure Mailgun mock
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.text = "OK"
-        mock_post.return_value = mock_response
-        yield mock_post
+        mock_requests_post.return_value = mock_response
+
+        yield {
+            "smtp_class": mock_smtp_class,
+            "smtp_instance": mock_smtp_instance,
+            "requests_post": mock_requests_post,
+            "sleep": mock_sleep,
+        }
 
 
 @pytest.fixture(autouse=True)

@@ -4,6 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
+import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -12,32 +13,31 @@ from src.database.models import DeliveryLog, MarketDataRecord, TipRecord
 from src.models.market_data import DataSource, HistoricalData, MarketData
 from src.models.trading_tip import EmailContent, TipSource, TradingTip
 from src.services.analysis_engine import AnalysisEngine
+from src.services.auth_user_service import AuthUserService
 from src.services.email_service import EmailService
 from src.services.scheduler_service import SchedulerService
+from src.services.token_service import TokenService
+
+_user_counter = 0
 
 
-def create_authenticated_user(test_client: TestClient):
-    """Create and authenticate a test user, return user data and tokens."""
-    # Register a user
-    user_data = {
-        "email": "testuser@example.com",
-        "password": "SecurePass123!",
-        "name": "Test User",
-    }
-    register_response = test_client.post("/auth/register", json=user_data)
-    assert register_response.status_code == status.HTTP_201_CREATED
-    user_info = register_response.json()
+def create_authenticated_user(test_client: TestClient, test_session: Session):
+    """Create and authenticate a test user using the test database session."""
+    global _user_counter
+    _user_counter += 1
 
-    # Login to get tokens
-    login_data = {"email": user_data["email"], "password": user_data["password"]}
-    login_response = test_client.post("/auth/login", json=login_data)
-    assert login_response.status_code == status.HTTP_200_OK
-    tokens = login_response.json()
+    user_service = AuthUserService(db_session=test_session)
+    user = user_service.create_user(
+        email=f"testuser{_user_counter}@example.com",
+        password_hash="hashed_pw",
+        name="Test User",
+    )
+    token_service = TokenService()
+    access_token = token_service.create_access_token(user.id)
 
     return {
-        "user": user_info,
-        "tokens": tokens,
-        "headers": {"Authorization": f"Bearer {tokens['access_token']}"},
+        "user": {"id": user.id, "email": user.email, "name": user.name},
+        "headers": {"Authorization": f"Bearer {access_token}"},
     }
 
 
@@ -197,7 +197,7 @@ class TestSchedulerToDashboardFlow:
     def test_tips_persisted_to_database(self, test_session: Session, test_client: TestClient):
         """Test that generated tips are persisted and accessible via dashboard API."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         scheduler = SchedulerService(db_session=test_session)
 
@@ -271,7 +271,7 @@ class TestSchedulerToDashboardFlow:
     ):
         """Test that market data is persisted and accessible via dashboard API."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create and persist market data
         market_data_record = MarketDataRecord(
@@ -421,6 +421,7 @@ class TestErrorScenarios:
         assert scheduler.scheduler is not None
 
 
+@pytest.mark.serial  # Run these tests serially to avoid mock conflicts
 class TestRetryLogic:
     """Test retry logic for failed operations."""
 
@@ -428,21 +429,27 @@ class TestRetryLogic:
         """Test that email retry uses exponential backoff delays."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
+        with patch("smtplib.SMTP") as mock_smtp_class:
             # Fail twice, then succeed
             call_count = [0]
 
-            def post_side_effect(*args, **kwargs):
+            def smtp_side_effect(*args, **kwargs):
                 call_count[0] += 1
-                mock_response = MagicMock()
-                if call_count[0] < 3:
-                    mock_response.status_code = 500
-                    mock_response.text = "Server error"
-                else:
-                    mock_response.status_code = 200
-                return mock_response
+                mock_smtp_instance = MagicMock()
 
-            mock_post.side_effect = post_side_effect
+                if call_count[0] < 3:
+                    # Simulate failure by raising exception in login
+                    mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                        "SMTP Auth Error"
+                    )
+                else:
+                    # Success case
+                    mock_smtp_instance.__enter__.return_value.login.return_value = None
+                    mock_smtp_instance.__enter__.return_value.send_message.return_value = None
+
+                return mock_smtp_instance
+
+            mock_smtp_class.side_effect = smtp_side_effect
 
             with patch("time.sleep") as mock_sleep:
                 result = email_service.send_email(
@@ -462,12 +469,13 @@ class TestRetryLogic:
         """Test that email fails after maximum retry attempts."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
+        with patch("smtplib.SMTP") as mock_smtp_class:
             # Always fail
-            mock_response = MagicMock()
-            mock_response.status_code = 500
-            mock_response.text = "Server error"
-            mock_post.return_value = mock_response
+            mock_smtp_instance = MagicMock()
+            mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                "Persistent failure"
+            )
+            mock_smtp_class.return_value = mock_smtp_instance
 
             with patch("time.sleep"):
                 result = email_service.send_email(
@@ -481,21 +489,27 @@ class TestRetryLogic:
         """Test that delivery log records all retry attempts."""
         email_service = EmailService(db_session=test_session)
 
-        with patch("src.services.email_service.requests.post") as mock_post:
+        with patch("smtplib.SMTP") as mock_smtp_class:
             # Fail once, then succeed
             call_count = [0]
 
-            def post_side_effect(*args, **kwargs):
+            def smtp_side_effect(*args, **kwargs):
                 call_count[0] += 1
-                mock_response = MagicMock()
-                if call_count[0] < 2:
-                    mock_response.status_code = 500
-                    mock_response.text = "Server error"
-                else:
-                    mock_response.status_code = 200
-                return mock_response
+                mock_smtp_instance = MagicMock()
 
-            mock_post.side_effect = post_side_effect
+                if call_count[0] < 2:
+                    # Simulate failure by raising exception in login
+                    mock_smtp_instance.__enter__.return_value.login.side_effect = Exception(
+                        "SMTP Auth Error"
+                    )
+                else:
+                    # Success case
+                    mock_smtp_instance.__enter__.return_value.login.return_value = None
+                    mock_smtp_instance.__enter__.return_value.send_message.return_value = None
+
+                return mock_smtp_instance
+
+            mock_smtp_class.side_effect = smtp_side_effect
 
             with patch("time.sleep"):
                 result = email_service.send_email(
@@ -523,7 +537,7 @@ class TestEndToEndDashboardFlow:
     def test_dashboard_displays_latest_tips(self, test_session: Session, test_client: TestClient):
         """Test that dashboard displays the latest tips."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create multiple tips
         for i in range(3):
@@ -552,7 +566,7 @@ class TestEndToEndDashboardFlow:
     def test_dashboard_filters_by_asset_type(self, test_session: Session, test_client: TestClient):
         """Test that dashboard correctly filters by asset type."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create tips of different types
         crypto_tip = TipRecord(
@@ -602,7 +616,7 @@ class TestEndToEndDashboardFlow:
     ):
         """Test that dashboard tip history respects date range."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create tips from different dates
         for i in range(5):
@@ -632,7 +646,7 @@ class TestEndToEndDashboardFlow:
     def test_dashboard_market_data_display(self, test_session: Session, test_client: TestClient):
         """Test that dashboard displays market data correctly."""
         # Create authenticated user
-        auth_user = create_authenticated_user(test_client)
+        auth_user = create_authenticated_user(test_client, test_session)
 
         # Create market data
         market_data = MarketDataRecord(

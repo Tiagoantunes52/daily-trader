@@ -176,85 +176,6 @@ class TestUserProfilePropertyBased:
         email_local=st.text(
             min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd"))
         ),
-        old_password=st.text(min_size=8, max_size=50),
-        new_password=st.text(min_size=8, max_size=50),
-    )
-    def test_password_change_validation(
-        self,
-        test_client,
-        test_session,
-        name: str,
-        email_local: str,
-        old_password: str,
-        new_password: str,
-    ):
-        """
-        Property 15: Password Change Validation
-
-        For any password change request, the new password should be validated for
-        strength, and the old password hash should be replaced with the new one.
-
-        Validates: Requirements 8.3
-        """
-        # Skip invalid inputs
-        if not name.strip() or not email_local.strip() or old_password == new_password:
-            return
-
-        try:
-            # Create a valid email
-            email = f"{email_local}@example.com"
-
-            # Validate both passwords
-            password_service = PasswordService()
-            old_valid, _ = password_service.validate_password_strength(old_password)
-            new_valid, _ = password_service.validate_password_strength(new_password)
-
-            if not old_valid:
-                return
-
-            user_service = AuthUserService(db_session=test_session)
-            old_password_hash = password_service.hash_password(old_password)
-            user = user_service.create_user(
-                email=email, password_hash=old_password_hash, name=name.strip()
-            )
-
-            # Create access token
-            token_service = TokenService()
-            access_token = token_service.create_access_token(user.id)
-
-            # Attempt password change
-            change_data = {"current_password": old_password, "new_password": new_password}
-            headers = {"Authorization": f"Bearer {access_token}"}
-            response = test_client.post(
-                "/api/user/change-password", json=change_data, headers=headers
-            )
-
-            if new_valid:
-                # Should succeed with valid new password
-                assert response.status_code == status.HTTP_200_OK
-
-                # Verify password was actually changed
-                updated_user = user_service.get_user_by_id(user.id)
-                assert updated_user.password_hash != old_password_hash
-                assert password_service.verify_password(new_password, updated_user.password_hash)
-            else:
-                # Should fail with invalid new password
-                assert response.status_code == status.HTTP_400_BAD_REQUEST
-
-        except Exception:
-            # Skip invalid test cases
-            return
-
-    @settings(
-        max_examples=10,
-        deadline=None,
-        suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
-    )
-    @given(
-        name=st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
-        email_local=st.text(
-            min_size=1, max_size=50, alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd"))
-        ),
         password=st.text(min_size=8, max_size=50),
         provider=st.sampled_from(["google", "github"]),
     )
@@ -477,65 +398,6 @@ class TestUserRoutesUnit:
         data = response.json()
         assert data["name"] == "New Name"
 
-    def test_change_password_success(self, test_client, test_session):
-        """Test successful password change."""
-        # Create user
-        user_service = AuthUserService(db_session=test_session)
-        password_service = PasswordService()
-        old_password = "OldPass123!"
-        password_hash = password_service.hash_password(old_password)
-        user = user_service.create_user(
-            email="test@example.com", password_hash=password_hash, name="Test User"
-        )
-
-        # Create access token
-        token_service = TokenService()
-        access_token = token_service.create_access_token(user.id)
-
-        # Generate CSRF token
-        csrf_service = CSRFService()
-        csrf_token = csrf_service.generate_token(str(user.id))
-
-        # Change password
-        change_data = {"current_password": old_password, "new_password": "NewPass123!"}
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "X-CSRF-Token": csrf_token,
-        }
-        response = test_client.post("/api/user/change-password", json=change_data, headers=headers)
-
-        # Verify response
-        assert response.status_code == status.HTTP_200_OK
-
-    def test_change_password_wrong_current(self, test_client, test_session):
-        """Test password change with wrong current password."""
-        # Create user
-        user_service = AuthUserService(db_session=test_session)
-        password_service = PasswordService()
-        password_hash = password_service.hash_password("OldPass123!")
-        user = user_service.create_user(
-            email="test@example.com", password_hash=password_hash, name="Test User"
-        )
-
-        # Create access token
-        token_service = TokenService()
-        access_token = token_service.create_access_token(user.id)
-
-        # Generate CSRF token
-        csrf_service = CSRFService()
-        csrf_token = csrf_service.generate_token(str(user.id))
-
-        # Try to change password with wrong current password
-        change_data = {"current_password": "WrongPass123!", "new_password": "NewPass123!"}
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "X-CSRF-Token": csrf_token,
-        }
-        response = test_client.post("/api/user/change-password", json=change_data, headers=headers)
-
-        # Verify response
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-
     def test_delete_account_success(self, test_client, test_session):
         """Test successful account deletion."""
         # Create user
@@ -601,43 +463,6 @@ class TestUserRoutesUnit:
 
         # Should fail with conflict
         assert response.status_code == status.HTTP_409_CONFLICT
-
-    def test_change_password_oauth_only_user(self, test_client, test_session):
-        """Test password change for OAuth-only user (no password)."""
-        # Create user with temporary password first
-        user_service = AuthUserService(db_session=test_session)
-        password_service = PasswordService()
-        temp_password_hash = password_service.hash_password("TempPass123!")
-        user = user_service.create_user(
-            email="oauth@example.com", password_hash=temp_password_hash, name="OAuth User"
-        )
-
-        # Manually set password_hash to None to simulate OAuth-only user
-        user.password_hash = None
-        test_session.commit()
-
-        # Create access token
-        token_service = TokenService()
-        access_token = token_service.create_access_token(user.id)
-
-        # Generate CSRF token
-        csrf_service = CSRFService()
-        csrf_token = csrf_service.generate_token(str(user.id))
-
-        # Try to change password
-        change_data = {"current_password": "anything", "new_password": "NewPass123!"}
-        headers = {
-            "Authorization": f"Bearer {access_token}",
-            "X-CSRF-Token": csrf_token,
-        }
-        response = test_client.post("/api/user/change-password", json=change_data, headers=headers)
-
-        # Should fail
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        response_data = response.json()
-        assert "detail" in response_data
-        assert "message" in response_data["detail"]
-        assert "OAuth-only account" in response_data["detail"]["message"]
 
     def test_disconnect_oauth_success(self, test_client, test_session):
         """Test successful OAuth disconnection."""
@@ -774,4 +599,4 @@ class TestUserRoutesUnit:
         response_data = response.json()
         assert "detail" in response_data
         assert "message" in response_data["detail"]
-        assert "last authentication method" in response_data["detail"]["message"]
+        assert "Cannot disconnect last authentication method" in response_data["detail"]["message"]

@@ -148,9 +148,10 @@ class TestAnalysisEngine:
             assert isinstance(tip.indicators, list), "Indicators must be a list"
             assert len(tip.indicators) > 0, "Tip must reference at least one indicator"
             # Verify indicators are valid technical analysis indicators
-            valid_indicators = {"RSI", "SMA", "MACD", "EMA"}
+            # Format is now descriptive: "RSI(5)", "RSI(14)", "SMA3", "SMA7", "Volume"
+            valid_prefixes = ("RSI", "SMA", "EMA", "MACD", "Volume")
             for indicator in tip.indicators:
-                assert indicator in valid_indicators, (
+                assert any(indicator.startswith(p) for p in valid_prefixes), (
                     f"Indicator {indicator} must be a valid technical analysis indicator"
                 )
 
@@ -362,9 +363,12 @@ class TestAnalysisEngine:
                 assert len(indicators) > 0, "Analysis must reference at least one indicator"
 
                 # Verify indicators are valid
-                valid_indicators = {"RSI", "SMA", "MACD"}
+                # Format is now descriptive: "RSI(5)", "RSI(14)", "SMA3", "SMA7", "Volume"
+                valid_prefixes = ("RSI", "SMA", "EMA", "MACD", "Volume")
                 for indicator in indicators:
-                    assert indicator in valid_indicators, f"Indicator {indicator} must be valid"
+                    assert any(indicator.startswith(p) for p in valid_prefixes), (
+                        f"Indicator {indicator} must be valid"
+                    )
 
         finally:
             clear_trace()

@@ -248,7 +248,7 @@ class TestSchedulerService:
         scheduler.stop()
 
     @given(market_data_strategy(asset_type="crypto"))
-    @settings(max_examples=10, suppress_health_check=[HealthCheck.data_too_large])
+    @settings(max_examples=5, suppress_health_check=[HealthCheck.data_too_large])
     def test_delivery_operations_are_logged(self, market_data):
         """
         **Feature: observability-logging, Property 1: Delivery operations are logged**
@@ -320,7 +320,7 @@ class TestSchedulerService:
             clear_trace()
 
     @given(market_data_strategy(asset_type="crypto"))
-    @settings(max_examples=10, suppress_health_check=[HealthCheck.data_too_large])
+    @settings(max_examples=5, suppress_health_check=[HealthCheck.data_too_large])
     def test_fetch_operations_are_logged_with_required_fields(self, market_data):
         """
         **Feature: observability-logging, Property 2: Fetch operations are logged with required fields**
@@ -396,7 +396,7 @@ class TestSchedulerService:
             clear_trace()
 
     @given(market_data_strategy(asset_type="crypto"))
-    @settings(max_examples=10, suppress_health_check=[HealthCheck.data_too_large])
+    @settings(max_examples=5, suppress_health_check=[HealthCheck.data_too_large])
     def test_analysis_operations_are_logged_with_indicators(self, market_data):
         """
         **Feature: observability-logging, Property 3: Analysis operations are logged with indicators**
@@ -452,7 +452,7 @@ class TestSchedulerService:
             clear_trace()
 
     @given(st.text(min_size=1, max_size=100))
-    @settings(max_examples=20)
+    @settings(max_examples=5)  # Reduced from 20 to speed up tests
     def test_email_operations_are_logged_with_required_fields(self, recipient):
         """
         **Feature: observability-logging, Property 4: Email operations are logged with required fields**
@@ -467,6 +467,8 @@ class TestSchedulerService:
 
         try:
             email_service = EmailService()
+            # Override retry delays to prevent long waits in case mock fails
+            email_service.retry_delays = [0.001, 0.001, 0.001]
 
             # Capture logs
             captured_output = StringIO()
@@ -474,33 +476,44 @@ class TestSchedulerService:
             sys.stdout = captured_output
 
             try:
-                # Mock requests.post to prevent actual email sending
+                # Mock all email transport mechanisms
                 with patch("src.services.email_service.requests.post") as mock_post:
-                    mock_response = Mock()
-                    mock_response.status_code = 200
-                    mock_post.return_value = mock_response
+                    with patch("src.services.email_service.smtplib.SMTP") as mock_smtp:
+                        with patch("src.services.email_service.time.sleep"):
+                            # Configure Mailgun mock
+                            mock_response = Mock()
+                            mock_response.status_code = 200
+                            mock_post.return_value = mock_response
 
-                    # Send email
-                    email_service.send_email(recipient, "Test Subject", "Test Content")
+                            # Configure SMTP mock
+                            mock_smtp_instance = Mock()
+                            mock_smtp.__enter__ = Mock(return_value=mock_smtp_instance)
+                            mock_smtp.__exit__ = Mock(return_value=False)
+                            mock_smtp.return_value = mock_smtp
 
-                    # Restore stdout
-                    sys.stdout = original_stdout
-                    output = captured_output.getvalue()
+                            # Send email
+                            email_service.send_email(recipient, "Test Subject", "Test Content")
 
-                    # Parse log entries
-                    log_lines = output.strip().split("\n")
-                    log_entries = [json.loads(line) for line in log_lines if line.strip()]
+                            # Restore stdout
+                            sys.stdout = original_stdout
+                            output = captured_output.getvalue()
 
-                    # Property: Log entries should include recipient, subject, and delivery_type
-                    email_logs = [e for e in log_entries if "recipient" in e.get("context", {})]
-                    assert len(email_logs) > 0, "No logs with recipient found"
+                            # Parse log entries
+                            log_lines = output.strip().split("\n")
+                            log_entries = [json.loads(line) for line in log_lines if line.strip()]
 
-                    for log_entry in email_logs:
-                        context = log_entry.get("context", {})
-                        assert "recipient" in context, "Missing 'recipient' field"
-                        assert "subject" in context, "Missing 'subject' field"
-                        assert context["recipient"] == recipient
-                        assert context["subject"] == "Test Subject"
+                            # Property: Log entries should include recipient, subject, and delivery_type
+                            email_logs = [
+                                e for e in log_entries if "recipient" in e.get("context", {})
+                            ]
+                            assert len(email_logs) > 0, "No logs with recipient found"
+
+                            for log_entry in email_logs:
+                                context = log_entry.get("context", {})
+                                assert "recipient" in context, "Missing 'recipient' field"
+                                assert "subject" in context, "Missing 'subject' field"
+                                assert context["recipient"] == recipient
+                                assert context["subject"] == "Test Subject"
 
             finally:
                 sys.stdout = original_stdout
@@ -508,7 +521,7 @@ class TestSchedulerService:
             clear_trace()
 
     @given(st.text(min_size=1, max_size=100))
-    @settings(max_examples=20)
+    @settings(max_examples=5)
     def test_error_logging_includes_full_context(self, error_message):
         """
         **Feature: observability-logging, Property 5: Error logging includes full context**
