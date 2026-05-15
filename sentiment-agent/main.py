@@ -3,7 +3,7 @@ Market Sentiment Agent — NemoClaw skill.
 
 Runs on a 30-minute loop:
   1. Search Brave News for each tracked symbol
-  2. Score sentiment with local vLLM
+  2. Score sentiment with local vLLM or OpenRouter
   3. POST scores to the Daily Market Tips API
 """
 
@@ -23,6 +23,8 @@ SENTIMENT_API_KEY = os.environ["SENTIMENT_API_KEY"]
 DAILY_TRADER_URL = os.getenv("DAILY_TRADER_URL", "http://host.openshell.internal:8001")
 VLLM_URL = os.getenv("VLLM_URL", "http://host.openshell.internal:8000/v1")
 VLLM_MODEL = os.getenv("VLLM_MODEL", "google/gemma-4-e4b")
+# Set when using an external provider (e.g. OpenRouter); leave unset for local vLLM
+LLM_API_KEY = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
 
 # Symbols mirror daily-trader scheduler_service.py defaults
 CRYPTO_SYMBOLS = ["bitcoin", "ethereum", "near", "solana", "tron"]
@@ -69,6 +71,10 @@ def score_sentiment(symbol: str, headlines: list[dict], client: httpx.Client) ->
         'neutral, mildly bullish, bullish, very bullish>", "key_theme": "<one sentence summary>"}'
     )
 
+    headers = {}
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+
     try:
         resp = client.post(
             f"{VLLM_URL}/chat/completions",
@@ -78,6 +84,7 @@ def score_sentiment(symbol: str, headlines: list[dict], client: httpx.Client) ->
                 "temperature": 0.1,
                 "max_tokens": 120,
             },
+            headers=headers,
             timeout=30,
         )
         resp.raise_for_status()

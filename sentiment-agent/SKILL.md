@@ -21,5 +21,6 @@ Runs every 30 minutes inside the NemoClaw sandbox. For each tracked symbol it:
 | `BRAVE_API_KEY` | Brave Search subscription token |
 | `SENTIMENT_API_KEY` | Shared secret for the `/api/sentiment` endpoint |
 | `DAILY_TRADER_URL` | Base URL of the Daily Market Tips API (default: `http://host.openshell.internal:8001`) |
-| `VLLM_URL` | vLLM base URL (default: `http://host.openshell.internal:8000/v1`) |
-| `VLLM_MODEL` | Model name (default: `google/gemma-4-e4b`) |
+| `VLLM_URL` | LLM base URL — set to `https://openrouter.ai/api/v1` for OpenRouter (default: `http://host.openshell.internal:8000/v1`) |
+| `VLLM_MODEL` | Model ID passed to the LLM API (default: `google/gemma-4-e4b`) |
+| `LLM_API_KEY` | API key for external providers. Falls back to `OPENAI_API_KEY`. Leave unset for local vLLM. |
